@@ -77,14 +77,14 @@ module KitchenScribe
 
     def commit
       shell_out!("git add .", { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
-      shell_out!("git commit -m \"#{config[:message]}\"", { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
+      shell_out!("git commit -m \"#{config[:message]}\"", { :cwd => Chef::Config[:knife][:scribe][:chronicle_path], :returns => [0, 1]})
     end
 
     def push
       push_command = "git push #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
       shell_out!(push_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
     end
-1
+
     def fetch_configs
       fetch_environments
       fetch_nodes
@@ -93,22 +93,34 @@ module KitchenScribe
 
     def fetch_environments
       environments.list.each do |env|
-        # TODO: Make sure environments are always serialized in the same way in terms of property order (I suspect they're not)
-        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", env.name), "w") { |file| file.write(JSON.pretty_generate(env)) }
+        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", env.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(env.to_hash))) }
       end
     end
 
     def fetch_nodes
       nodes.list.each do |n|
         # TODO: Make sure nodes are always serialized in the same way in terms of property order (I suspect they're not)
-        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", n.name), "w") { |file| file.write(JSON.pretty_generate({"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list})) }
+        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", n.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort({"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}))) }
       end
     end
 
     def fetch_roles
       roles.list.each do |r|
-        # TODO: Make sure nodes are always serialized in the same way in terms of property order (I suspect they're not)
-        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", r.name), "w") { |file| file.write(JSON.pretty_generate(r)) }
+        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", r.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(r.to_hash))) }
+      end
+    end
+
+    def deep_sort param
+      if param.is_a?(Hash)
+        deeply_sorted_hash = {}
+        param.keys.sort.each { |key| deeply_sorted_hash[key] = deep_sort(param[key]) }
+        return deeply_sorted_hash
+      elsif param.is_a?(Array)
+        deeply_sorted_array = []
+        param.each { |value| deeply_sorted_array.push(deep_sort(value)) }
+        return deeply_sorted_array
+      else
+        return param
       end
     end
   end
