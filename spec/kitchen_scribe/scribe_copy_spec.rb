@@ -118,11 +118,49 @@ describe KitchenScribe::ScribeCopy do
   end
 
   describe "#pull" do
-    it "pulls from the remote repository" do
-      pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
-      @scribe.should_receive(:shell_out!).with(pull_command,
-                                               :cwd => "chronicle_path")
-      @scribe.pull
+    before(:each) do
+      @command_response = double('shell_out')
+      @command_response.stub(:exitstatus) { 0 }
+    end
+
+    describe "when a remote branch already exists" do
+      it "pulls from the remote repository" do
+        @command_response.stub(:stdout) { "#{Chef::Config[:knife][:scribe][:branch]}\nremotes/#{Chef::Config[:knife][:scribe][:remote_name]}/#{Chef::Config[:knife][:scribe][:branch]}" }
+        check_remote_branch_command = "git branch -a"
+        @scribe.should_receive(:shell_out!).with(check_remote_branch_command,
+                                                 :cwd => "chronicle_path").and_return(@command_response)
+        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+        @scribe.should_receive(:shell_out!).with(pull_command,
+                                                 :cwd => "chronicle_path")
+        @scribe.pull
+      end
+    end
+
+    describe "when a remote branch doesn't already exist" do
+      it "doesn't pull'" do
+        @command_response.stub(:stdout) { "#{Chef::Config[:knife][:scribe][:branch]}2\nremotes/#{Chef::Config[:knife][:scribe][:remote_name]}/#{Chef::Config[:knife][:scribe][:branch]}2" }
+        check_remote_branch_command = "git branch -a"
+        @scribe.should_receive(:shell_out!).with(check_remote_branch_command,
+                                                 :cwd => "chronicle_path").and_return(@command_response)
+        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+        @scribe.should_not_receive(:shell_out!).with(pull_command,
+                                                 :cwd => "chronicle_path")
+        @scribe.pull
+      end
+    end
+
+    describe "when the repository is empty" do
+      it "doesn't pull'" do
+        @command_response.stub(:stdout) { "" }
+        check_remote_branch_command = "git branch -a"
+        @scribe.should_receive(:shell_out!).with(check_remote_branch_command,
+                                                 :cwd => "chronicle_path").and_return(@command_response)
+        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+        @scribe.should_not_receive(:shell_out!).with(pull_command,
+                                                     :cwd => "chronicle_path")
+        @scribe.pull
+      end
+
     end
   end
 

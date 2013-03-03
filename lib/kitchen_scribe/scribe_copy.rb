@@ -89,8 +89,12 @@ module KitchenScribe
     end
 
     def pull
-      pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
-      shell_out!(pull_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
+      check_remote_branch_command = "git branch -a"
+      remote_branches = shell_out!(check_remote_branch_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] }).stdout
+      if remote_branches.match(Regexp.new("#{Chef::Config[:knife][:scribe][:remote_name]}/#{Chef::Config[:knife][:scribe][:branch]}(\s|$)"))
+        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+        shell_out!(pull_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
+      end
     end
 
     def commit
