@@ -32,10 +32,17 @@ describe KitchenScribe::ScribeCopy do
       @scribe.stub(:commit)
       @scribe.stub(:push)
       @scribe.stub(:configure)
+      @scribe.stub(:switch_branches)
+      @scribe.stub(:fetch)
     end
 
     it "configures itself" do
       @scribe.should_receive(:configure)
+      @scribe.run
+    end
+
+    it "switches the branch" do
+      @scribe.should_receive(:switch_branches)
       @scribe.run
     end
 
@@ -59,6 +66,11 @@ describe KitchenScribe::ScribeCopy do
         @scribe.stub(:remote_configured?) { false }
       end
 
+      it "doesn't attempt to fetch from the remote repository" do
+        @scribe.should_not_receive(:fetch)
+        @scribe.run
+      end
+
       it "doesn't attempt to pull the changes from the remote repository" do
         @scribe.should_not_receive(:pull)
         @scribe.run
@@ -74,6 +86,11 @@ describe KitchenScribe::ScribeCopy do
     describe "when the remote is configured" do
       before(:each) do
         @scribe.stub(:remote_configured?) { true }
+      end
+
+      it "fetches changes from remote repository" do
+        @scribe.should_receive(:fetch)
+        @scribe.run
       end
 
       it "pulls changes from remote repository" do
@@ -148,6 +165,52 @@ describe KitchenScribe::ScribeCopy do
     end
   end
 
+  describe "#switch_branches" do
+
+    before(:each) do
+      @command_response = double('shell_out')
+      @command_response.stub(:exitstatus) { 0 }
+      @branch_command = "git branch"
+    end
+
+    describe "when already on the branch" do
+      it "does nothing" do
+        @command_response.stub(:stdout) { "#{@scribe.config[:branch]}2\n* #{@scribe.config[:branch]}\n#a{@scribe.config[:branch]}" }
+        @scribe.should_receive(:shell_out!).with(@branch_command,
+                                                 :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
+        switch_command = "git checkout -B #{@scribe.config[:branch]}"
+        @scribe.should_not_receive(:shell_out!).with(switch_command,
+                                                     :cwd => @scribe.config[:chronicle_path])
+        @scribe.switch_branches
+      end
+    end
+
+    describe "when the branch exists but is not the current one" do
+      it "switches to the branch" do
+        @command_response.stub(:stdout) { "#{@scribe.config[:branch]}2\n  #{@scribe.config[:branch]}\n#*  a{@scribe.config[:branch]}" }
+        @scribe.should_receive(:shell_out!).with(@branch_command,
+                                                 :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
+        switch_command = "git checkout -B #{@scribe.config[:branch]}"
+        @scribe.should_receive(:shell_out!).with(switch_command,
+                                                 :cwd => @scribe.config[:chronicle_path])
+        @scribe.switch_branches
+      end
+    end
+
+    describe "when the branch doesn't exist'" do
+      it "creates the branch and switches to it" do
+        @command_response.stub(:stdout) { "* #{@scribe.config[:branch]}2\n#a{@scribe.config[:branch]}" }
+        @scribe.should_receive(:shell_out!).with(@branch_command,
+                                                 :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
+        switch_command = "git checkout -B #{@scribe.config[:branch]}"
+        @scribe.should_receive(:shell_out!).with(switch_command,
+                                                 :cwd => @scribe.config[:chronicle_path])
+        @scribe.switch_branches
+      end
+    end
+  end
+
+
   describe "#remote_configured?" do
 
     before(:each) do
@@ -179,6 +242,16 @@ describe KitchenScribe::ScribeCopy do
       @scribe.remote_configured?.should be(true)
     end
   end
+
+  describe "#fetch" do
+    it "fetches the changes from the remote repository" do
+      fetch_command = "git fetch #{@scribe.config[:remote_name]}"
+      @scribe.should_receive(:shell_out!).with(fetch_command,
+                                               :cwd => @scribe.config[:chronicle_path])
+      @scribe.fetch
+    end
+  end
+
 
   describe "#pull" do
     before(:each) do

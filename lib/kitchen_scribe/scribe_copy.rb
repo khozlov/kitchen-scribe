@@ -66,7 +66,8 @@ module KitchenScribe
       Shef::Extensions.extend_context_object(self)
       configure
       # I'm not doing any conflict or uncommited changes detection as chronicle should not be modified manualy
-      # TODO: Add the ability to switch branches automatically
+      fetch if remote_configured?
+      switch_branches
       pull if remote_configured?
       fetch_configs
       commit
@@ -81,9 +82,22 @@ module KitchenScribe
       config[:message] ||= Chef::Config[:knife][:scribe][:commit_message] || DEFAULT_MESSAGE
     end
 
+    def fetch
+      fetch_command = "git fetch #{config[:remote_name]}"
+      shell_out!(fetch_command, { :cwd => config[:chronicle_path] })
+    end
+
+    def switch_branches
+      matched_branch_command = shell_out!("git branch", { :cwd => config[:chronicle_path] }).stdout.match(Regexp.new("(\\*\s*)(#{config[:branch]})(?:\s+|$)"))
+      if matched_branch_command.nil?
+        shell_out!("git checkout -B #{config[:branch]}", { :cwd => config[:chronicle_path] })
+      end
+    end
+
     def remote_configured?
       return @remote_configured unless @remote_configured.nil?
       remote_command = shell_out!("git remote", { :cwd => config[:chronicle_path] })
+      # FIXME: Using include is not restrictive enough
       return @remote_configured = !remote_command.stdout.empty? && remote_command.stdout.split("\n").collect {|r| r.strip}.include?(config[:remote_name])
     end
 
