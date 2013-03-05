@@ -21,94 +21,114 @@ require File.expand_path('../../spec_helper', __FILE__)
 describe KitchenScribe::ScribeHire do
   before(:each) do
     Dir.stub!(:mkdir)
-    Dir.stub!(:pwd) { "some_path"}
+    Dir.stub!(:pwd) { "some_path" }
+    @scribe = KitchenScribe::ScribeHire.new
     Chef::Config[:knife][:scribe] = {}
-    @scribeHire = KitchenScribe::ScribeHire.new
+    @scribe.configure
   end
 
   describe "#run" do
-    describe "with no chronicle path configuration" do
+    before(:each) do
+      @scribe.stub(:setup_remote)
+      @scribe.stub(:init_chronicle)
+      File.stub!(:directory?) { false }
+    end
+
+    it "calls #configure" do
+      @scribe.should_receive(:configure)
+      @scribe.run
+    end
+
+    it "creates the main chronicle directory in the chronicle path" do
+      Dir.should_receive(:mkdir).with(@scribe.config[:chronicle_path])
+      @scribe.run
+    end
+
+    it "creates the environments subdirectory in the chronicle path" do
+      Dir.should_receive(:mkdir).with(File.join(@scribe.config[:chronicle_path], "environments"))
+      @scribe.run
+    end
+
+    it "creates the nodes subdirectory in the chronicle path" do
+      Dir.should_receive(:mkdir).with(File.join(@scribe.config[:chronicle_path], "nodes"))
+      @scribe.run
+    end
+
+    it "creates the roles subdirectory in the chronicle path" do
+      Dir.should_receive(:mkdir).with(File.join(@scribe.config[:chronicle_path], "roles"))
+      @scribe.run
+    end
+
+    it "calls #setup_remote" do
+      @scribe.should_receive(:setup_remote)
+      @scribe.run
+    end
+
+    it "calls #init_chronicle" do
+      @scribe.should_receive(:init_chronicle)
+      @scribe.run
+    end
+  end
+
+  describe "#configure" do
+    describe "when no configuration is given" do
       before(:each) do
-        @default_chonicle_dir_name = ".chronicle"
-        @scribeHire.stub(:setup_remote)
-        @scribeHire.stub(:init_chronicle)
+        @scribe.config = {}
+        Chef::Config[:knife][:scribe] = nil
       end
 
-      it "creates the main chronicle directory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join("some_path", @default_chonicle_dir_name))
-        @scribeHire.run
-      end
-
-      it "creates the environments subdirectory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join("some_path", @default_chonicle_dir_name, "environments"))
-        @scribeHire.run
-      end
-
-      it "creates the nodes subdirectory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join("some_path", @default_chonicle_dir_name, "nodes"))
-        @scribeHire.run
-      end
-
-      it "creates the roles subdirectory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join("some_path", @default_chonicle_dir_name, "roles"))
-        @scribeHire.run
-      end
-
-      it "passes the default path to #setup_remote" do
-        @scribeHire.should_receive(:setup_remote).with(File.join("some_path", @default_chonicle_dir_name))
-        @scribeHire.run
-      end
-
-      it "passes the default path to #init_chronicle" do
-        @scribeHire.should_receive(:init_chronicle).with(File.join("some_path", @default_chonicle_dir_name))
-        @scribeHire.run
+      it "uses the default values for all parameters" do
+        @scribe.configure
+        @scribe.config[:chronicle_path].should == KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH
+        @scribe.config[:remote_name].should == KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME
+        @scribe.config[:remote_url].should be_nil
       end
     end
 
-    describe "with chronicle path configuration present" do
+    describe "when configuration is given through knife config" do
       before(:each) do
-        @chronicle_path = "some_other_path"
-        Chef::Config[:knife][:scribe][:chronicle_path] = @chronicle_path
-        @scribeHire.stub(:setup_remote)
-        @scribeHire.stub(:init_chronicle)
+        Chef::Config[:knife][:scribe] = {}
+        Chef::Config[:knife][:scribe][:chronicle_path] = KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH + "_knife"
+        Chef::Config[:knife][:scribe][:remote_name] =  KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME + "_knife"
+        Chef::Config[:knife][:scribe][:remote_url] =  "remote_url_knife"
+        @scribe.config = {}
       end
 
-      it "creates the main chronicle directory in the default path" do
-        Dir.should_receive(:mkdir).with(@chronicle_path)
-        @scribeHire.run
+      describe "when no other configuration is given" do
+        before(:each) do
+          @scribe.config = {}
+        end
+
+        it "uses the configuration from knife config" do
+          @scribe.configure
+          @scribe.config[:chronicle_path].should == Chef::Config[:knife][:scribe][:chronicle_path]
+          @scribe.config[:remote_name].should == Chef::Config[:knife][:scribe][:remote_name]
+          @scribe.config[:remote_url].should == Chef::Config[:knife][:scribe][:remote_url]
+        end
       end
 
-      it "creates the environments subdirectory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join(@chronicle_path, "environments"))
-        @scribeHire.run
-      end
+      describe "when command line configuration is given" do
+        before(:each) do
+          @scribe.config[:chronicle_path] = KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name] =  KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:remote_url] = "remote_url_cmd"
+        end
 
-      it "creates the nodes subdirectory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join(@chronicle_path, "nodes"))
-        @scribeHire.run
-      end
-
-      it "creates the roles subdirectory in the default path" do
-        Dir.should_receive(:mkdir).with(File.join(@chronicle_path, "roles"))
-        @scribeHire.run
-      end
-
-      it "passes the default path to #setup_remote" do
-        @scribeHire.should_receive(:setup_remote).with(File.join(@chronicle_path))
-        @scribeHire.run
-      end
-
-      it "passes the default path to #init_chronicle" do
-        @scribeHire.should_receive(:init_chronicle).with(File.join(@chronicle_path))
-        @scribeHire.run
+        it "uses the configuration from command line" do
+          @scribe.configure
+          @scribe.config[:chronicle_path].should == KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name].should == KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:remote_url].should == "remote_url_cmd"
+        end
       end
     end
   end
 
+
   describe "#init_chronicle" do
     it "invokes the git init shell command" do
-      @scribeHire.should_receive(:shell_out!).with("git init", { :cwd => "a_path" })
-      @scribeHire.init_chronicle "a_path"
+      @scribe.should_receive(:shell_out!).with("git init", { :cwd => @scribe.config[:chronicle_path] })
+      @scribe.init_chronicle
     end
   end
 
@@ -117,19 +137,19 @@ describe KitchenScribe::ScribeHire do
       before(:each) do
         @remote_url = "a_repo_url"
         @remote_name = "a_repo_name"
-        Chef::Config[:knife][:scribe][:remote_url] = @remote_url
-        Chef::Config[:knife][:scribe][:remote_name] = @remote_name
+        @scribe.config[:remote_url] = @remote_url
+        @scribe.config[:remote_name] = @remote_name
       end
 
       it "checks if a remote with this name already exists" do
         command_response = double('shell_out')
         command_response.stub(:exitstatus) { 1 }
-        @scribeHire.stub(:shell_out!) { command_response }
+        @scribe.stub(:shell_out!) { command_response }
         expected_command = "git config --get remote.#{@remote_name}.url"
-        @scribeHire.should_receive(:shell_out!).with(expected_command,
-                                                     :cwd => "chronicle_path",
+        @scribe.should_receive(:shell_out!).with(expected_command,
+                                                     :cwd => @scribe.config[:chronicle_path],
                                                      :returns => [0,1,2])
-        @scribeHire.setup_remote "chronicle_path"
+        @scribe.setup_remote
       end
 
       describe "when the remote of that name does not exist" do
@@ -137,13 +157,13 @@ describe KitchenScribe::ScribeHire do
           command_response = double('shell_out')
           command_response.stub(:exitstatus) { 1 }
           expected_command = "git config --get remote.#{@remote_name}.url"
-          @scribeHire.should_receive(:shell_out!).with(expected_command,
-                                                       :cwd => "chronicle_path",
+          @scribe.should_receive(:shell_out!).with(expected_command,
+                                                       :cwd => @scribe.config[:chronicle_path],
                                                        :returns => [0,1,2]).and_return(command_response)
           add_remote_command = "git remote add #{@remote_name} #{@remote_url}"
-          @scribeHire.should_receive(:shell_out!).with(add_remote_command,
-                                                       :cwd => "chronicle_path")
-          @scribeHire.setup_remote "chronicle_path"
+          @scribe.should_receive(:shell_out!).with(add_remote_command,
+                                                       :cwd => @scribe.config[:chronicle_path])
+          @scribe.setup_remote
         end
       end
 
@@ -154,13 +174,13 @@ describe KitchenScribe::ScribeHire do
             command_response.stub(:exitstatus) { 0 }
             command_response.stub(:stdout) { "previous" + @remote_url }
             expected_command = "git config --get remote.#{@remote_name}.url"
-            @scribeHire.should_receive(:shell_out!).with(expected_command,
-                                                         :cwd => "chronicle_path",
+            @scribe.should_receive(:shell_out!).with(expected_command,
+                                                         :cwd => @scribe.config[:chronicle_path],
                                                          :returns => [0,1,2]).and_return(command_response)
             update_remote_url_command = "git config --replace-all remote.#{@remote_name}.url #{@remote_url}"
-            @scribeHire.should_receive(:shell_out!).with(update_remote_url_command,
-                                                         :cwd => "chronicle_path")
-            @scribeHire.setup_remote "chronicle_path"
+            @scribe.should_receive(:shell_out!).with(update_remote_url_command,
+                                                         :cwd => @scribe.config[:chronicle_path])
+            @scribe.setup_remote
           end
         end
 
@@ -171,13 +191,13 @@ describe KitchenScribe::ScribeHire do
             command_response.stub(:exitstatus) { 2 }
             command_response.stub(:stdout) { "previous" + @remote_url }
             expected_command = "git config --get remote.#{@remote_name}.url"
-            @scribeHire.should_receive(:shell_out!).with(expected_command,
-                                                         :cwd => "chronicle_path",
+            @scribe.should_receive(:shell_out!).with(expected_command,
+                                                         :cwd => @scribe.config[:chronicle_path],
                                                          :returns => [0,1,2]).and_return(command_response)
             update_remote_url_command = "git config --replace-all remote.#{@remote_name}.url #{@remote_url}"
-            @scribeHire.should_receive(:shell_out!).with(update_remote_url_command,
-                                                         :cwd => "chronicle_path")
-            @scribeHire.setup_remote "chronicle_path"
+            @scribe.should_receive(:shell_out!).with(update_remote_url_command,
+                                                         :cwd => @scribe.config[:chronicle_path])
+            @scribe.setup_remote
           end
         end
 
@@ -187,11 +207,11 @@ describe KitchenScribe::ScribeHire do
             command_response.stub(:exitstatus) { 0 }
             command_response.stub(:stdout) { @remote_url }
             expected_command = "git config --get remote.#{@remote_name}.url"
-            @scribeHire.should_receive(:shell_out!).with(expected_command,
-                                                         :cwd => "chronicle_path",
+            @scribe.should_receive(:shell_out!).with(expected_command,
+                                                         :cwd => @scribe.config[:chronicle_path],
                                                          :returns => [0,1,2]).and_return(command_response)
-            @scribeHire.should_receive(:shell_out!).exactly(0).times
-            @scribeHire.setup_remote "chronicle_path"
+            @scribe.should_receive(:shell_out!).exactly(0).times
+            @scribe.setup_remote
           end
         end
       end
@@ -201,27 +221,27 @@ describe KitchenScribe::ScribeHire do
       before(:each) do
         @remote_url = "a_repo_url"
         @default_remote_name = "origin"
-        Chef::Config[:knife][:scribe][:remote_url] = @remote_url
+        @scribe.config[:remote_url] = @remote_url
       end
 
       it "uses a default remote name" do
         command_response = double('shell_out')
         command_response.stub(:exitstatus) { 1 }
         expected_command = "git config --get remote.#{@default_remote_name}.url"
-        @scribeHire.should_receive(:shell_out!).with(expected_command,
-                                                     :cwd => "chronicle_path",
+        @scribe.should_receive(:shell_out!).with(expected_command,
+                                                     :cwd => @scribe.config[:chronicle_path],
                                                      :returns => [0,1,2]).and_return(command_response)
         add_remote_command = "git remote add #{@default_remote_name} #{@remote_url}"
-        @scribeHire.should_receive(:shell_out!).with(add_remote_command,
-                                                     :cwd => "chronicle_path")
-        @scribeHire.setup_remote "chronicle_path"
+        @scribe.should_receive(:shell_out!).with(add_remote_command,
+                                                     :cwd => @scribe.config[:chronicle_path])
+        @scribe.setup_remote
       end
     end
 
     describe "when remote url was not specified" do
       it "does nothing" do
-        @scribeHire.should_not_receive(:shell_out!)
-        @scribeHire.setup_remote "chronicle_path"
+        @scribe.should_not_receive(:shell_out!)
+        @scribe.setup_remote
       end
     end
   end

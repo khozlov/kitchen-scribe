@@ -23,6 +23,11 @@ module KitchenScribe
 
     include Chef::Mixin::ShellOut
 
+    DEFAULT_CHRONICLE_PATH = ".chronicle"
+    DEFAULT_REMOTE_NAME = "origin"
+    DEFAULT_BRANCH = "master"
+    DEFAULT_MESSAGE = 'Commiting chef state as of %TIME%'
+
     banner "knife scribe copy"
 
     deps do
@@ -33,27 +38,17 @@ module KitchenScribe
     :short => "-p PATH",
     :long => "--chronicle-path PATH",
     :description => "Path to the directory where the chronicle should be located",
-    :proc => Proc.new { |key|
-      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
-      Chef::Config[:knife][:scribe][:chronicle_path] = key
-    }
+    :default => nil
 
     option :remote_name,
     :long => "--remote-name REMOTE_NAME",
     :description => "Name of the remote chronicle repository",
-    :proc => Proc.new { |key|
-      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
-      Chef::Config[:knife][:scribe][:remote_name] = key
-    }
+    :default => nil
 
     option :branch,
     :long => "--branch BRANCH_NAME",
     :description => "Name of the branch you want to use",
-    :proc => Proc.new { |key|
-      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
-      Chef::Config[:knife][:scribe][:branch] = key
-    }
-
+    :default => nil
 
     option :message,
     :short => "-m COMMIT_MESSAGE",
@@ -69,11 +64,7 @@ module KitchenScribe
 
     def run
       Shef::Extensions.extend_context_object(self)
-      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
-      Chef::Config[:knife][:scribe][:chronicle_path] ||= ".chronicle"
-      Chef::Config[:knife][:scribe][:remote_name] ||=  "origin"
-      Chef::Config[:knife][:scribe][:branch] ||=  "master"
-      config[:message] ||= 'Commiting chef state as of ' + Time.now.to_s
+      configure
       # I'm not doing any conflict or uncommited changes detection as chronicle should not be modified manualy
       # TODO: Add the ability to switch branches automatically
       pull if remote_configured?
@@ -82,29 +73,37 @@ module KitchenScribe
       push if remote_configured?
     end
 
+    def configure
+      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
+      config[:chronicle_path] ||= Chef::Config[:knife][:scribe][:chronicle_path] || DEFAULT_CHRONICLE_PATH
+      config[:remote_name] ||= Chef::Config[:knife][:scribe][:remote_name] || DEFAULT_REMOTE_NAME
+      config[:branch] ||=  Chef::Config[:knife][:scribe][:branch] || DEFAULT_BRANCH
+      config[:message] ||= Chef::Config[:knife][:scribe][:commit_message] || DEFAULT_MESSAGE
+    end
+
     def remote_configured?
       return @remote_configured unless @remote_configured.nil?
-      remote_command = shell_out!("git remote", { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
-      return @remote_configured = !remote_command.stdout.empty? && remote_command.stdout.split("\n").collect {|r| r.strip}.include?(Chef::Config[:knife][:scribe][:remote_name])
+      remote_command = shell_out!("git remote", { :cwd => config[:chronicle_path] })
+      return @remote_configured = !remote_command.stdout.empty? && remote_command.stdout.split("\n").collect {|r| r.strip}.include?(config[:remote_name])
     end
 
     def pull
       check_remote_branch_command = "git branch -a"
-      remote_branches = shell_out!(check_remote_branch_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] }).stdout
-      if remote_branches.match(Regexp.new("#{Chef::Config[:knife][:scribe][:remote_name]}/#{Chef::Config[:knife][:scribe][:branch]}(\s|$)"))
-        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
-        shell_out!(pull_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
+      remote_branches = shell_out!(check_remote_branch_command, { :cwd => config[:chronicle_path] }).stdout
+      if remote_branches.match(Regexp.new("#{config[:remote_name]}/#{config[:branch]}(\s|$)"))
+        pull_command = "git pull #{config[:remote_name]} #{config[:branch]}"
+        shell_out!(pull_command, { :cwd => config[:chronicle_path] })
       end
     end
 
     def commit
-      shell_out!("git add .", { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
-      shell_out!("git commit -m \"#{config[:message]}\"", { :cwd => Chef::Config[:knife][:scribe][:chronicle_path], :returns => [0, 1]})
+      shell_out!("git add .", { :cwd => config[:chronicle_path] })
+      shell_out!("git commit -m \"#{config[:message].gsub(/%TIME%/, Time.now.to_s)}\"", { :cwd => config[:chronicle_path], :returns => [0, 1]})
     end
 
     def push
-      push_command = "git push #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
-      shell_out!(push_command, { :cwd => Chef::Config[:knife][:scribe][:chronicle_path] })
+      push_command = "git push #{config[:remote_name]} #{config[:branch]}"
+      shell_out!(push_command, { :cwd => config[:chronicle_path] })
     end
 
     def fetch_configs
@@ -115,20 +114,20 @@ module KitchenScribe
 
     def fetch_environments
       environments.list.each do |env|
-        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", env.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(env.to_hash))) }
+        File.open(File.join(config[:chronicle_path], "environments", env.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(env.to_hash))) }
       end
     end
 
     def fetch_nodes
       nodes.list.each do |n|
         # TODO: Make sure nodes are always serialized in the same way in terms of property order (I suspect they're not)
-        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", n.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort({"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}))) }
+        File.open(File.join(config[:chronicle_path], "nodes", n.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort({"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}))) }
       end
     end
 
     def fetch_roles
       roles.list.each do |r|
-        File.open(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", r.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(r.to_hash))) }
+        File.open(File.join(config[:chronicle_path], "roles", r.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(r.to_hash))) }
       end
     end
 

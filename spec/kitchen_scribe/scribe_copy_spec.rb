@@ -20,11 +20,8 @@ require File.expand_path('../../spec_helper', __FILE__)
 
 describe KitchenScribe::ScribeCopy do
   before(:each) do
-    Chef::Config[:knife][:scribe] = {}
-    Chef::Config[:knife][:scribe][:chronicle_path] = "chronicle_path"
-    Chef::Config[:knife][:scribe][:remote_name] =  "remote_name"
-    Chef::Config[:knife][:scribe][:branch] =  "branch_name"
     @scribe = KitchenScribe::ScribeCopy.new
+    @scribe.configure
   end
 
   describe "#run" do
@@ -34,6 +31,12 @@ describe KitchenScribe::ScribeCopy do
       @scribe.stub(:fetch_configs)
       @scribe.stub(:commit)
       @scribe.stub(:push)
+      @scribe.stub(:configure)
+    end
+
+    it "configures itself" do
+      @scribe.should_receive(:configure)
+      @scribe.run
     end
 
     it "checks if a given remote is configured" do
@@ -85,6 +88,66 @@ describe KitchenScribe::ScribeCopy do
     end
   end
 
+  describe "#configure" do
+
+    describe "when no configuration is given" do
+      before(:each) do
+        @scribe.config = {}
+        Chef::Config[:knife][:scribe] = nil
+      end
+
+      it "uses the default values for all parameters" do
+        @scribe.configure
+        @scribe.config[:chronicle_path].should == KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH
+        @scribe.config[:remote_name].should == KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME
+        @scribe.config[:branch].should == KitchenScribe::ScribeCopy::DEFAULT_BRANCH
+        @scribe.config[:message].should == KitchenScribe::ScribeCopy::DEFAULT_MESSAGE
+      end
+    end
+
+    describe "when configuration is given through knife config" do
+      before(:each) do
+        Chef::Config[:knife][:scribe] = {}
+        Chef::Config[:knife][:scribe][:chronicle_path] = KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_knife"
+        Chef::Config[:knife][:scribe][:remote_name] =  KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_knife"
+        Chef::Config[:knife][:scribe][:branch] =  KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_knife"
+        Chef::Config[:knife][:scribe][:commit_message] = KitchenScribe::ScribeCopy::DEFAULT_MESSAGE + "_knife"
+        @scribe.config = {}
+      end
+
+      describe "when no other configuration is given" do
+        before(:each) do
+          @scribe.config = {}
+        end
+
+        it "uses the configuration from knife config" do
+          @scribe.configure
+          @scribe.config[:chronicle_path].should == Chef::Config[:knife][:scribe][:chronicle_path]
+          @scribe.config[:remote_name].should == Chef::Config[:knife][:scribe][:remote_name]
+          @scribe.config[:branch].should == Chef::Config[:knife][:scribe][:branch]
+          @scribe.config[:message].should == Chef::Config[:knife][:scribe][:commit_message]
+        end
+      end
+
+      describe "when command line configuration is given" do
+        before(:each) do
+          @scribe.config[:chronicle_path] = KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name] =  KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:branch] =  KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_cmd"
+          @scribe.config[:message] = KitchenScribe::ScribeCopy::DEFAULT_MESSAGE + "_cmd"
+        end
+
+        it "uses the configuration from command line" do
+          @scribe.configure
+          @scribe.config[:chronicle_path].should == KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name].should == KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:branch].should == KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_cmd"
+          @scribe.config[:message].should == KitchenScribe::ScribeCopy::DEFAULT_MESSAGE + "_cmd"
+        end
+      end
+    end
+  end
+
   describe "#remote_configured?" do
 
     before(:each) do
@@ -96,7 +159,7 @@ describe KitchenScribe::ScribeCopy do
     it "returns false if no remote is configured" do
       @command_response.stub(:stdout) { "" }
       @scribe.should_receive(:shell_out!).with(@remote_command,
-                                               :cwd => "chronicle_path").and_return(@command_response)
+                                               :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
       @scribe.remote_configured?.should be(false)
     end
 
@@ -104,15 +167,15 @@ describe KitchenScribe::ScribeCopy do
     it "returns false if a given remote is not configured" do
       @command_response.stub(:stdout) { "another_remote_name\nyet_another_remote_name" }
       @scribe.should_receive(:shell_out!).with(@remote_command,
-                                               :cwd => "chronicle_path").and_return(@command_response)
+                                               :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
 
       @scribe.remote_configured?.should be(false)
     end
 
     it "returns true if a given remote is configured" do
-      @command_response.stub(:stdout) { "another_remote_name\nremote_name\nyet_another_remote_name" }
+      @command_response.stub(:stdout) { "another_#{@scribe.config[:remote_name]}\n#{@scribe.config[:remote_name]}\nyet_another_#{@scribe.config[:remote_name]}" }
       @scribe.should_receive(:shell_out!).with(@remote_command,
-                                               :cwd => "chronicle_path").and_return(@command_response)
+                                               :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
       @scribe.remote_configured?.should be(true)
     end
   end
@@ -125,26 +188,26 @@ describe KitchenScribe::ScribeCopy do
 
     describe "when a remote branch already exists" do
       it "pulls from the remote repository" do
-        @command_response.stub(:stdout) { "#{Chef::Config[:knife][:scribe][:branch]}\nremotes/#{Chef::Config[:knife][:scribe][:remote_name]}/#{Chef::Config[:knife][:scribe][:branch]}" }
+        @command_response.stub(:stdout) { "#{@scribe.config[:branch]}\nremotes/#{@scribe.config[:remote_name]}/#{@scribe.config[:branch]}" }
         check_remote_branch_command = "git branch -a"
         @scribe.should_receive(:shell_out!).with(check_remote_branch_command,
-                                                 :cwd => "chronicle_path").and_return(@command_response)
-        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+                                                 :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
+        pull_command = "git pull #{@scribe.config[:remote_name]} #{@scribe.config[:branch]}"
         @scribe.should_receive(:shell_out!).with(pull_command,
-                                                 :cwd => "chronicle_path")
+                                                 :cwd => @scribe.config[:chronicle_path])
         @scribe.pull
       end
     end
 
     describe "when a remote branch doesn't already exist" do
       it "doesn't pull'" do
-        @command_response.stub(:stdout) { "#{Chef::Config[:knife][:scribe][:branch]}2\nremotes/#{Chef::Config[:knife][:scribe][:remote_name]}/#{Chef::Config[:knife][:scribe][:branch]}2" }
+        @command_response.stub(:stdout) { "#{@scribe.config[:branch]}2\nremotes/#{@scribe.config[:remote_name]}/#{@scribe.config[:branch]}2" }
         check_remote_branch_command = "git branch -a"
         @scribe.should_receive(:shell_out!).with(check_remote_branch_command,
-                                                 :cwd => "chronicle_path").and_return(@command_response)
-        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+                                                 :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
+        pull_command = "git pull #{@scribe.config[:remote_name]} #{@scribe.config[:branch]}"
         @scribe.should_not_receive(:shell_out!).with(pull_command,
-                                                 :cwd => "chronicle_path")
+                                                 :cwd => @scribe.config[:chronicle_path])
         @scribe.pull
       end
     end
@@ -154,10 +217,10 @@ describe KitchenScribe::ScribeCopy do
         @command_response.stub(:stdout) { "" }
         check_remote_branch_command = "git branch -a"
         @scribe.should_receive(:shell_out!).with(check_remote_branch_command,
-                                                 :cwd => "chronicle_path").and_return(@command_response)
-        pull_command = "git pull #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+                                                 :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
+        pull_command = "git pull #{@scribe.config[:remote_name]} #{@scribe.config[:branch]}"
         @scribe.should_not_receive(:shell_out!).with(pull_command,
-                                                     :cwd => "chronicle_path")
+                                                     :cwd => @scribe.config[:chronicle_path])
         @scribe.pull
       end
 
@@ -169,23 +232,23 @@ describe KitchenScribe::ScribeCopy do
       @command_response = double('shell_out')
       @command_response.stub(:exitstatus) { 0 }
       @command_response.stub(:stdout) { "" }
-      @scribe.config[:message] = "Commit message"
+      @scribe.config[:message] = "Commit message at %TIME%"
     end
 
     it "adds all files prior to commit" do
       expected_command = "git add ."
       @scribe.should_receive(:shell_out!).with(expected_command,
-                                               :cwd => "chronicle_path").and_return(@command_response)
+                                               :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
       pull_command = "git pull remote_name branch_name"
       @scribe.stub(:shell_out!)
       @scribe.commit
     end
 
     it "commits all changes" do
-      expected_command = "git commit -m \"#{@scribe.config[:message]}\""
+      expected_command = "git commit -m \"#{@scribe.config[:message].gsub(/%TIME%/, Time.now.to_s)}\""
       @scribe.stub(:shell_out!)
       @scribe.should_receive(:shell_out!).with(expected_command,
-                                               :cwd => "chronicle_path",
+                                               :cwd => @scribe.config[:chronicle_path],
                                                :returns => [0, 1]).and_return(@command_response)
       @scribe.commit
     end
@@ -193,9 +256,9 @@ describe KitchenScribe::ScribeCopy do
 
   describe "#push" do
     it "pushes to the remote repository" do
-      push_command = "git push #{Chef::Config[:knife][:scribe][:remote_name]} #{Chef::Config[:knife][:scribe][:branch]}"
+      push_command = "git push #{@scribe.config[:remote_name]} #{@scribe.config[:branch]}"
       @scribe.should_receive(:shell_out!).with(push_command,
-                                               :cwd => "chronicle_path")
+                                               :cwd => @scribe.config[:chronicle_path])
       @scribe.push
     end
   end
@@ -239,16 +302,16 @@ describe KitchenScribe::ScribeCopy do
     end
 
     it "saves the environments into separate files" do
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", @environment1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", @environment2.name + ".json"), "w").and_yield(@f2)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment1.name + ".json"), "w").and_yield(@f1)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment2.name + ".json"), "w").and_yield(@f2)
       @f1.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@environment1)))
       @f2.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@environment2)))
       @scribe.fetch_environments
     end
 
     it "saves the roles as deeply sorted hashes" do
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", @environment1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "environments", @environment2.name + ".json"), "w").and_yield(@f2)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment1.name + ".json"), "w").and_yield(@f1)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment2.name + ".json"), "w").and_yield(@f2)
       @scribe.should_receive(:deep_sort).with(@environment1).and_return(@environment1)
       @scribe.should_receive(:deep_sort).with(@environment2).and_return(@environment2)
       @scribe.fetch_environments
@@ -271,16 +334,16 @@ describe KitchenScribe::ScribeCopy do
     end
 
     it "saves the roles into separate files" do
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", @role1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", @role2.name + ".json"), "w").and_yield(@f2)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role1.name + ".json"), "w").and_yield(@f1)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role2.name + ".json"), "w").and_yield(@f2)
       @f1.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@role1)))
       @f2.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@role2)))
       @scribe.fetch_roles
     end
 
     it "saves the roles as a deeply sorted hash" do
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", @role1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "roles", @role2.name + ".json"), "w").and_yield(@f2)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role1.name + ".json"), "w").and_yield(@f1)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role2.name + ".json"), "w").and_yield(@f2)
       @scribe.should_receive(:deep_sort).with(@role1).and_return(@role1)
       @scribe.should_receive(:deep_sort).with(@role2).and_return(@role2)
       @scribe.fetch_roles
@@ -311,16 +374,16 @@ describe KitchenScribe::ScribeCopy do
     end
 
     it "saves the nodes into separate files" do
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", @node1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", @node2.name + ".json"), "w").and_yield(@f2)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node1.name + ".json"), "w").and_yield(@f1)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node2.name + ".json"), "w").and_yield(@f2)
       @f1.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@serialized_node1)))
       @f2.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@serialized_node2)))
       @scribe.fetch_nodes
     end
 
     it "saves the nodes into separate files" do
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", @node1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(Chef::Config[:knife][:scribe][:chronicle_path], "nodes", @node2.name + ".json"), "w").and_yield(@f2)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node1.name + ".json"), "w").and_yield(@f1)
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node2.name + ".json"), "w").and_yield(@f2)
       @scribe.should_receive(:deep_sort).with(@serialized_node1).and_return(@serialized_node1)
       @scribe.should_receive(:deep_sort).with(@serialized_node2).and_return(@serialized_node1)
       @scribe.fetch_nodes
