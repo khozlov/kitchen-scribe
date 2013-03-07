@@ -26,7 +26,7 @@ module KitchenScribe
     DEFAULT_CHRONICLE_PATH = ".chronicle"
     DEFAULT_REMOTE_NAME = "origin"
     DEFAULT_BRANCH = "master"
-    DEFAULT_MESSAGE = 'Commiting chef state as of %TIME%'
+    DEFAULT_COMMIT_MESSAGE = 'Commiting chef state as of %TIME%'
 
     banner "knife scribe copy"
 
@@ -50,17 +50,11 @@ module KitchenScribe
     :description => "Name of the branch you want to use",
     :default => nil
 
-    option :message,
+    option :commit_message,
     :short => "-m COMMIT_MESSAGE",
-    :long => "--message COMMIT_MESSAGE",
+    :long => "--commit_message COMMIT_MESSAGE",
     :description => "Message that should be used for the commit",
     :default => nil
-
-    option :skip_commit,
-    :long => "--skip-commit",
-    :description => "Tell the scribe not to commit the copy",
-    :boolean => true
-
 
     def run
       Shef::Extensions.extend_context_object(self)
@@ -75,11 +69,14 @@ module KitchenScribe
     end
 
     def configure
-      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
-      config[:chronicle_path] ||= Chef::Config[:knife][:scribe][:chronicle_path] || DEFAULT_CHRONICLE_PATH
-      config[:remote_name] ||= Chef::Config[:knife][:scribe][:remote_name] || DEFAULT_REMOTE_NAME
-      config[:branch] ||=  Chef::Config[:knife][:scribe][:branch] || DEFAULT_BRANCH
-      config[:message] ||= Chef::Config[:knife][:scribe][:commit_message] || DEFAULT_MESSAGE
+      conf = { :chronicle_path => DEFAULT_CHRONICLE_PATH,
+        :remote_name => DEFAULT_REMOTE_NAME,
+        :branch => DEFAULT_BRANCH,
+        :commit_message => DEFAULT_COMMIT_MESSAGE }
+      conf.merge!(Chef::Config[:knife][:scribe]) if Chef::Config[:knife][:scribe].kind_of? Hash
+      conf.each do |key, value|
+        config[key] ||= value
+      end
     end
 
     def fetch
@@ -97,7 +94,6 @@ module KitchenScribe
     def remote_configured?
       return @remote_configured unless @remote_configured.nil?
       remote_command = shell_out!("git remote", { :cwd => config[:chronicle_path] })
-      # FIXME: Using include is not restrictive enough
       return @remote_configured = !remote_command.stdout.empty? && remote_command.stdout.split("\n").collect {|r| r.strip}.include?(config[:remote_name])
     end
 
@@ -112,7 +108,7 @@ module KitchenScribe
 
     def commit
       shell_out!("git add .", { :cwd => config[:chronicle_path] })
-      shell_out!("git commit -m \"#{config[:message].gsub(/%TIME%/, Time.now.to_s)}\"", { :cwd => config[:chronicle_path], :returns => [0, 1]})
+      shell_out!("git commit -m \"#{config[:commit_message].gsub(/%TIME%/, Time.now.to_s)}\"", { :cwd => config[:chronicle_path], :returns => [0, 1]})
     end
 
     def push
@@ -128,20 +124,20 @@ module KitchenScribe
 
     def fetch_environments
       environments.list.each do |env|
-        File.open(File.join(config[:chronicle_path], "environments", env.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(env.to_hash))) }
+        save_to_file("environments",env.name, env.to_hash)
       end
     end
 
     def fetch_nodes
       nodes.list.each do |n|
-        # TODO: Make sure nodes are always serialized in the same way in terms of property order (I suspect they're not)
-        File.open(File.join(config[:chronicle_path], "nodes", n.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort({"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}))) }
+        node_hash = {"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}
+        save_to_file("nodes",n.name, node_hash)
       end
     end
 
     def fetch_roles
       roles.list.each do |r|
-        File.open(File.join(config[:chronicle_path], "roles", r.name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(r.to_hash))) }
+        save_to_file("roles",r.name, r.to_hash)
       end
     end
 
@@ -158,5 +154,10 @@ module KitchenScribe
         return param
       end
     end
+
+    def save_to_file(dir, name, hash)
+      File.open(File.join(config[:chronicle_path], dir, name + ".json"), "w") { |file| file.write(JSON.pretty_generate(deep_sort(hash))) }
+    end
+
   end
 end

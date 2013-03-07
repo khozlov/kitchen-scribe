@@ -118,7 +118,7 @@ describe KitchenScribe::ScribeCopy do
         @scribe.config[:chronicle_path].should == KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH
         @scribe.config[:remote_name].should == KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME
         @scribe.config[:branch].should == KitchenScribe::ScribeCopy::DEFAULT_BRANCH
-        @scribe.config[:message].should == KitchenScribe::ScribeCopy::DEFAULT_MESSAGE
+        @scribe.config[:commit_message].should == KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE
       end
     end
 
@@ -128,7 +128,7 @@ describe KitchenScribe::ScribeCopy do
         Chef::Config[:knife][:scribe][:chronicle_path] = KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_knife"
         Chef::Config[:knife][:scribe][:remote_name] =  KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_knife"
         Chef::Config[:knife][:scribe][:branch] =  KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_knife"
-        Chef::Config[:knife][:scribe][:commit_message] = KitchenScribe::ScribeCopy::DEFAULT_MESSAGE + "_knife"
+        Chef::Config[:knife][:scribe][:commit_message] = KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_knife"
         @scribe.config = {}
       end
 
@@ -142,7 +142,7 @@ describe KitchenScribe::ScribeCopy do
           @scribe.config[:chronicle_path].should == Chef::Config[:knife][:scribe][:chronicle_path]
           @scribe.config[:remote_name].should == Chef::Config[:knife][:scribe][:remote_name]
           @scribe.config[:branch].should == Chef::Config[:knife][:scribe][:branch]
-          @scribe.config[:message].should == Chef::Config[:knife][:scribe][:commit_message]
+          @scribe.config[:commit_message].should == Chef::Config[:knife][:scribe][:commit_message]
         end
       end
 
@@ -151,7 +151,7 @@ describe KitchenScribe::ScribeCopy do
           @scribe.config[:chronicle_path] = KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
           @scribe.config[:remote_name] =  KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
           @scribe.config[:branch] =  KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_cmd"
-          @scribe.config[:message] = KitchenScribe::ScribeCopy::DEFAULT_MESSAGE + "_cmd"
+          @scribe.config[:commit_message] = KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_cmd"
         end
 
         it "uses the configuration from command line" do
@@ -159,7 +159,7 @@ describe KitchenScribe::ScribeCopy do
           @scribe.config[:chronicle_path].should == KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
           @scribe.config[:remote_name].should == KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
           @scribe.config[:branch].should == KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_cmd"
-          @scribe.config[:message].should == KitchenScribe::ScribeCopy::DEFAULT_MESSAGE + "_cmd"
+          @scribe.config[:commit_message].should == KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_cmd"
         end
       end
     end
@@ -228,7 +228,7 @@ describe KitchenScribe::ScribeCopy do
 
 
     it "returns false if a given remote is not configured" do
-      @command_response.stub(:stdout) { "another_remote_name\nyet_another_remote_name" }
+      @command_response.stub(:stdout) { "another_remote_name\nyet_another_remote_name\nAAA#{@scribe.config[:remote_name]}" }
       @scribe.should_receive(:shell_out!).with(@remote_command,
                                                :cwd => @scribe.config[:chronicle_path]).and_return(@command_response)
 
@@ -305,7 +305,7 @@ describe KitchenScribe::ScribeCopy do
       @command_response = double('shell_out')
       @command_response.stub(:exitstatus) { 0 }
       @command_response.stub(:stdout) { "" }
-      @scribe.config[:message] = "Commit message at %TIME%"
+      @scribe.config[:commit_message] = "Commit message at %TIME%"
     end
 
     it "adds all files prior to commit" do
@@ -318,7 +318,7 @@ describe KitchenScribe::ScribeCopy do
     end
 
     it "commits all changes" do
-      expected_command = "git commit -m \"#{@scribe.config[:message].gsub(/%TIME%/, Time.now.to_s)}\""
+      expected_command = "git commit -m \"#{@scribe.config[:commit_message].gsub(/%TIME%/, Time.now.to_s)}\""
       @scribe.stub(:shell_out!)
       @scribe.should_receive(:shell_out!).with(expected_command,
                                                :cwd => @scribe.config[:chronicle_path],
@@ -368,25 +368,11 @@ describe KitchenScribe::ScribeCopy do
       environments = double()
       environments.stub(:list) { [@environment1, @environment2] }
       @scribe.stub(:environments) { environments }
-      @f1 = double()
-      @f1.stub(:write)
-      @f2 = double()
-      @f2.stub(:write)
     end
 
-    it "saves the environments into separate files" do
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment2.name + ".json"), "w").and_yield(@f2)
-      @f1.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@environment1)))
-      @f2.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@environment2)))
-      @scribe.fetch_environments
-    end
-
-    it "saves the roles as deeply sorted hashes" do
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "environments", @environment2.name + ".json"), "w").and_yield(@f2)
-      @scribe.should_receive(:deep_sort).with(@environment1).and_return(@environment1)
-      @scribe.should_receive(:deep_sort).with(@environment2).and_return(@environment2)
+    it "saves each env to a file" do
+      @scribe.should_receive(:save_to_file).with("environments",@environment1.name, @environment1)
+      @scribe.should_receive(:save_to_file).with("environments",@environment2.name, @environment2)
       @scribe.fetch_environments
     end
   end
@@ -399,26 +385,12 @@ describe KitchenScribe::ScribeCopy do
       @role2.stub(:name) { "role_name2" }
       @roles = double()
       @roles.stub(:list) { [@role1, @role2] }
-      @f1 = double()
-      @f1.stub(:write)
-      @f2 = double()
-      @f2.stub(:write)
       @scribe.stub(:roles) { @roles }
     end
 
-    it "saves the roles into separate files" do
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role2.name + ".json"), "w").and_yield(@f2)
-      @f1.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@role1)))
-      @f2.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@role2)))
-      @scribe.fetch_roles
-    end
-
-    it "saves the roles as a deeply sorted hash" do
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "roles", @role2.name + ".json"), "w").and_yield(@f2)
-      @scribe.should_receive(:deep_sort).with(@role1).and_return(@role1)
-      @scribe.should_receive(:deep_sort).with(@role2).and_return(@role2)
+    it "saves each role to a file" do
+      @scribe.should_receive(:save_to_file).with("roles",@role1.name, @role1)
+      @scribe.should_receive(:save_to_file).with("roles",@role2.name, @role2)
       @scribe.fetch_roles
     end
   end
@@ -440,29 +412,30 @@ describe KitchenScribe::ScribeCopy do
       nodes = double()
       nodes.stub(:list) { [@node1, @node2] }
       @scribe.stub(:nodes) { nodes }
+    end
+
+    it "saves each node to a file" do
+      @scribe.should_receive(:save_to_file).with("nodes",@node1.name, @serialized_node1)
+      @scribe.should_receive(:save_to_file).with("nodes",@node2.name, @serialized_node2)
+      @scribe.fetch_nodes
+    end
+  end
+
+  describe "#save_to_file" do
+    before(:each) do
       @f1 = double()
       @f1.stub(:write)
-      @f2 = double()
-      @f2.stub(:write)
+      @data = { :test_key2 => "test_value2", :test_key2 => "test_value2"}
     end
 
-    it "saves the nodes into separate files" do
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node2.name + ".json"), "w").and_yield(@f2)
-      @f1.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@serialized_node1)))
-      @f2.should_receive(:write).with(JSON.pretty_generate(@scribe.deep_sort(@serialized_node2)))
-      @scribe.fetch_nodes
+    it "saves deeply sorted data into a specific file in a specific directory" do
+      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "dir", "name.json"), "w").and_yield(@f1)
+      @scribe.should_receive(:deep_sort).with(@data).and_return({:sorted => "data"})
+      @f1.should_receive(:write).with(JSON.pretty_generate({:sorted => "data"}))
+      @scribe.save_to_file "dir", "name", @data
     end
-
-    it "saves the nodes into separate files" do
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node1.name + ".json"), "w").and_yield(@f1)
-      File.should_receive(:open).with(File.join(@scribe.config[:chronicle_path], "nodes", @node2.name + ".json"), "w").and_yield(@f2)
-      @scribe.should_receive(:deep_sort).with(@serialized_node1).and_return(@serialized_node1)
-      @scribe.should_receive(:deep_sort).with(@serialized_node2).and_return(@serialized_node1)
-      @scribe.fetch_nodes
-    end
-
   end
+
 
   describe "#deep_sort" do
     describe "when it gets a hash as a parameter" do

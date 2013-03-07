@@ -55,17 +55,20 @@ module KitchenScribe
       configure
       Dir.mkdir(config[:chronicle_path]) unless File.directory?(config[:chronicle_path])
       init_chronicle
-      setup_remote
-      Dir.mkdir(File.join(config[:chronicle_path], "environments")) unless File.directory?(File.join(config[:chronicle_path], "environments"))
-      Dir.mkdir(File.join(config[:chronicle_path], "nodes")) unless File.directory?(File.join(config[:chronicle_path], "nodes"))
-      Dir.mkdir(File.join(config[:chronicle_path], "roles")) unless File.directory?(File.join(config[:chronicle_path], "roles"))
+      setup_remote if config[:remote_url]
+      ["environments", "nodes", "roles"].each do |dir|
+        path = File.join(config[:chronicle_path], dir)
+        Dir.mkdir(path) unless File.directory?(path)
+      end
     end
 
     def configure
-      Chef::Config[:knife][:scribe] = {} if Chef::Config[:knife][:scribe].nil?
-      config[:chronicle_path] ||= Chef::Config[:knife][:scribe][:chronicle_path] || DEFAULT_CHRONICLE_PATH
-      config[:remote_name] ||= Chef::Config[:knife][:scribe][:remote_name] || DEFAULT_REMOTE_NAME
-      config[:remote_url] ||= Chef::Config[:knife][:scribe][:remote_url]
+      conf = { :chronicle_path => DEFAULT_CHRONICLE_PATH,
+        :remote_name => DEFAULT_REMOTE_NAME }
+      conf.merge!(Chef::Config[:knife][:scribe]) if Chef::Config[:knife][:scribe].kind_of? Hash
+      conf.each do |key, value|
+        config[key] ||= value
+      end
     end
 
     def init_chronicle
@@ -73,22 +76,19 @@ module KitchenScribe
     end
 
     def setup_remote
-      if remote_url = config[:remote_url]
-        remote_name = config[:remote_name] || "origin"
-        check_remote_command = "git config --get remote.#{remote_name}.url"
-        remote_status = shell_out!(check_remote_command, { :cwd => config[:chronicle_path], :returns => [0,1,2] })
-        case remote_status.exitstatus
-        when 0, 2
-          # In theory 2 should not happen unless somebody messed with
-          # the checkout manually, but using --replace-all option will fix it
-          unless remote_status.exitstatus != 2 && remote_status.stdout.strip.eql?(remote_url)
-            update_remote_url_command = "git config --replace-all remote.#{remote_name}.url #{remote_url}"
-            shell_out!(update_remote_url_command, { :cwd => config[:chronicle_path] })
-          end
-        when 1
-          add_remote_command = "git remote add #{remote_name} #{remote_url}"
-          shell_out!(add_remote_command, { :cwd => config[:chronicle_path] })
+      check_remote_command = "git config --get remote.#{config[:remote_name]}.url"
+      remote_status = shell_out!(check_remote_command, { :cwd => config[:chronicle_path], :returns => [0,1,2] })
+      case remote_status.exitstatus
+      when 0, 2
+        # In theory 2 should not happen unless somebody messed with
+        # the checkout manually, but using --replace-all option will fix it
+        unless remote_status.exitstatus != 2 && remote_status.stdout.strip.eql?(config[:remote_url])
+          update_remote_url_command = "git config --replace-all remote.#{config[:remote_name]}.url #{config[:remote_url]}"
+          shell_out!(update_remote_url_command, { :cwd => config[:chronicle_path] })
         end
+      when 1
+        add_remote_command = "git remote add #{config[:remote_name]} #{config[:remote_url]}"
+        shell_out!(add_remote_command, { :cwd => config[:chronicle_path] })
       end
     end
   end

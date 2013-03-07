@@ -28,20 +28,21 @@ Next you probably want to get your scribe to actually do something for a change.
 * `-p` or `--chronicle-path` followed by a path to specify a different location for the chronicle.
 * `--remote-name` followed by a remote_name to specify a different remote name.
 * `--branch` followed by a branch name to indicate that you want to use a different branch.
-* `-m` or `--message` followed by a message to, suprise, suprise, specify your own custom message (use `%TIME%` anywhere in the message to get it substitued with current time).
+* `-m` or `--commit-message` followed by a message to, suprise, suprise, specify your own custom message (use `%TIME%` anywhere in the message to get it substitued with current time).
 
-In theory you should be able to specify all the params in your `knife.rb` not to type it in every time. This feature is already there, so if you want to use it, I'm sure you'll be able to figure it out by looking at the source. Still, please keep in mind that:
+You can also specify all the params in your `knife.rb` not to type it in every time by putting a config hash in there:
 
-* I'm planning to work on this feature soon so it probably **WILL CHANGE** in the near future
-* I haven't really tested the thing yet
-
+    knife[:scribe] = { :chronicle_path => "your_path",
+                       :remote_name => "your_remote_name",
+                       :remote_url => "your_remote_url",
+                       :branch => "your_branch",
+                       :commit_message => "your_commit_message"                                                                                                                                                        
+    }
 Have fun!
 
 WHAT'S THE PLAN?
 ----------------
-- Configuration via `knife.rb`
-- FIXME in the `copy` action
-- Figure out a good way of sharing some defaults between the two actions
+
 - Turn Scribe into a gem
 - Mysterious Next Step ;-)
 

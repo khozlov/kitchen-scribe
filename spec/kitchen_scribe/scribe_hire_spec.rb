@@ -59,14 +59,26 @@ describe KitchenScribe::ScribeHire do
       @scribe.run
     end
 
-    it "calls #setup_remote" do
-      @scribe.should_receive(:setup_remote)
-      @scribe.run
-    end
-
     it "calls #init_chronicle" do
       @scribe.should_receive(:init_chronicle)
       @scribe.run
+    end
+
+    describe "when remote url was not specified" do
+      it "doesn't call #setup_remote" do
+        @scribe.should_not_receive(:setup_remote)
+        @scribe.run
+      end
+    end
+
+    describe "when remote url was specified" do
+      before(:each) do
+        @scribe.config[:remote_url] = "some_url"
+      end
+      it "calls #setup_remote" do
+        @scribe.should_receive(:setup_remote)
+        @scribe.run
+      end
     end
   end
 
@@ -234,13 +246,6 @@ describe KitchenScribe::ScribeHire do
         add_remote_command = "git remote add #{@default_remote_name} #{@remote_url}"
         @scribe.should_receive(:shell_out!).with(add_remote_command,
                                                      :cwd => @scribe.config[:chronicle_path])
-        @scribe.setup_remote
-      end
-    end
-
-    describe "when remote url was not specified" do
-      it "does nothing" do
-        @scribe.should_not_receive(:shell_out!)
         @scribe.setup_remote
       end
     end
