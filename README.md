@@ -10,6 +10,8 @@ In it's core it pulls the configuration of all your environements, roles, and no
 
 The plugin is in an early alpha (as indicated by the commit dates) so things may change rather drastically in the near future.
 
+[![Code Climate](https://codeclimate.com/github/khozlov/kitchen-scribe.png)](https://codeclimate.com/github/khozlov/kitchen-scribe)
+
 USAGE
 -----
 
