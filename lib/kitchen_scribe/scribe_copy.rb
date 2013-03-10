@@ -31,7 +31,9 @@ module KitchenScribe
     banner "knife scribe copy"
 
     deps do
-      require 'chef/shef/ext'
+      require 'chef/environment'
+      require 'chef/role'
+      require 'chef/node'
     end
 
     option :chronicle_path,
@@ -57,7 +59,6 @@ module KitchenScribe
     :default => nil
 
     def run
-      Shef::Extensions.extend_context_object(self)
       configure
       # I'm not doing any conflict or uncommited changes detection as chronicle should not be modified manualy
       fetch if remote_configured?
@@ -123,21 +124,21 @@ module KitchenScribe
     end
 
     def fetch_environments
-      environments.list.each do |env|
-        save_to_file("environments",env.name, env.to_hash)
+      Chef::Environment.list(true).each do |name, env|
+        save_to_file("environments", name, env.to_hash)
       end
     end
 
     def fetch_nodes
-      nodes.list.each do |n|
-        node_hash = {"name" => n.name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}
-        save_to_file("nodes",n.name, node_hash)
+      Chef::Node.list(true).each do |name, n|
+        node_hash = {"name" => name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}
+        save_to_file("nodes",name, node_hash)
       end
     end
 
     def fetch_roles
-      roles.list.each do |r|
-        save_to_file("roles",r.name, r.to_hash)
+      Chef::Role.list(true).each do |name, r|
+        save_to_file("roles", name, r.to_hash)
       end
     end
 

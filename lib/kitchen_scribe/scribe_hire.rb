@@ -29,10 +29,6 @@ module KitchenScribe
 
     banner "knife scribe hire"
 
-    deps do
-      require 'chef/shef/ext'
-    end
-
     option :chronicle_path,
     :short => "-p PATH",
     :long => "--chronicle-path PATH",
@@ -51,7 +47,6 @@ module KitchenScribe
     :default => nil
 
     def run
-      Shef::Extensions.extend_context_object(self)
       configure
       Dir.mkdir(config[:chronicle_path]) unless File.directory?(config[:chronicle_path])
       init_chronicle

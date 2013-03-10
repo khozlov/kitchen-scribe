@@ -365,14 +365,12 @@ describe KitchenScribe::ScribeCopy do
       @environment1.stub(:name) { "env_name1" }
       @environment2 = { :test2 => :value2 }
       @environment2.stub(:name) { "env_name2" }
-      environments = double()
-      environments.stub(:list) { [@environment1, @environment2] }
-      @scribe.stub(:environments) { environments }
+      Chef::Environment.stub(:list) { { @environment1.name => @environment1, @environment2.name => @environment2 } }
     end
 
     it "saves each env to a file" do
-      @scribe.should_receive(:save_to_file).with("environments",@environment1.name, @environment1)
-      @scribe.should_receive(:save_to_file).with("environments",@environment2.name, @environment2)
+      @scribe.should_receive(:save_to_file).with("environments", @environment1.name, @environment1)
+      @scribe.should_receive(:save_to_file).with("environments", @environment2.name, @environment2)
       @scribe.fetch_environments
     end
   end
@@ -383,14 +381,12 @@ describe KitchenScribe::ScribeCopy do
       @role1.stub(:name) { "role_name1" }
       @role2 = { :test2 => :value2 }
       @role2.stub(:name) { "role_name2" }
-      @roles = double()
-      @roles.stub(:list) { [@role1, @role2] }
-      @scribe.stub(:roles) { @roles }
+      Chef::Role.stub(:list) { { @role1.name => @role1, @role2.name => @role2 } }
     end
 
     it "saves each role to a file" do
-      @scribe.should_receive(:save_to_file).with("roles",@role1.name, @role1)
-      @scribe.should_receive(:save_to_file).with("roles",@role2.name, @role2)
+      @scribe.should_receive(:save_to_file).with("roles", @role1.name, @role1)
+      @scribe.should_receive(:save_to_file).with("roles", @role2.name, @role2)
       @scribe.fetch_roles
     end
   end
@@ -409,14 +405,12 @@ describe KitchenScribe::ScribeCopy do
       @node2.stub(:normal_attrs) { { :attrA => "valA" } }
       @node2.stub(:run_list) { ["cookbookA", "cookbookB"] }
       @serialized_node2 = {"name" => @node2.name, "env" => @node2.chef_environment, "attribiutes" => @node2.normal_attrs, "run_list" => @node2.run_list}
-      nodes = double()
-      nodes.stub(:list) { [@node1, @node2] }
-      @scribe.stub(:nodes) { nodes }
+      Chef::Node.stub(:list) { { @node1.name => @node1, @node2.name => @node2 } }
     end
 
     it "saves each node to a file" do
-      @scribe.should_receive(:save_to_file).with("nodes",@node1.name, @serialized_node1)
-      @scribe.should_receive(:save_to_file).with("nodes",@node2.name, @serialized_node2)
+      @scribe.should_receive(:save_to_file).with("nodes", @node1.name, @serialized_node1)
+      @scribe.should_receive(:save_to_file).with("nodes", @node2.name, @serialized_node2)
       @scribe.fetch_nodes
     end
   end
