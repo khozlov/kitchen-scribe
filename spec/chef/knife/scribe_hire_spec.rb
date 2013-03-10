@@ -16,13 +16,13 @@
 # limitations under the License.
 #
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../../../spec_helper', __FILE__)
 
-describe KitchenScribe::ScribeHire do
+describe Chef::Knife::ScribeHire do
   before(:each) do
     Dir.stub!(:mkdir)
     Dir.stub!(:pwd) { "some_path" }
-    @scribe = KitchenScribe::ScribeHire.new
+    @scribe = Chef::Knife::ScribeHire.new
     Chef::Config[:knife][:scribe] = {}
     @scribe.configure
   end
@@ -91,8 +91,8 @@ describe KitchenScribe::ScribeHire do
 
       it "uses the default values for all parameters" do
         @scribe.configure
-        @scribe.config[:chronicle_path].should == KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH
-        @scribe.config[:remote_name].should == KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME
+        @scribe.config[:chronicle_path].should == Chef::Knife::ScribeHire::DEFAULT_CHRONICLE_PATH
+        @scribe.config[:remote_name].should == Chef::Knife::ScribeHire::DEFAULT_REMOTE_NAME
         @scribe.config[:remote_url].should be_nil
       end
     end
@@ -100,8 +100,8 @@ describe KitchenScribe::ScribeHire do
     describe "when configuration is given through knife config" do
       before(:each) do
         Chef::Config[:knife][:scribe] = {}
-        Chef::Config[:knife][:scribe][:chronicle_path] = KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH + "_knife"
-        Chef::Config[:knife][:scribe][:remote_name] =  KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME + "_knife"
+        Chef::Config[:knife][:scribe][:chronicle_path] = Chef::Knife::ScribeHire::DEFAULT_CHRONICLE_PATH + "_knife"
+        Chef::Config[:knife][:scribe][:remote_name] =  Chef::Knife::ScribeHire::DEFAULT_REMOTE_NAME + "_knife"
         Chef::Config[:knife][:scribe][:remote_url] =  "remote_url_knife"
         @scribe.config = {}
       end
@@ -121,15 +121,15 @@ describe KitchenScribe::ScribeHire do
 
       describe "when command line configuration is given" do
         before(:each) do
-          @scribe.config[:chronicle_path] = KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH + "_cmd"
-          @scribe.config[:remote_name] =  KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:chronicle_path] = Chef::Knife::ScribeHire::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name] =  Chef::Knife::ScribeHire::DEFAULT_REMOTE_NAME + "_cmd"
           @scribe.config[:remote_url] = "remote_url_cmd"
         end
 
         it "uses the configuration from command line" do
           @scribe.configure
-          @scribe.config[:chronicle_path].should == KitchenScribe::ScribeHire::DEFAULT_CHRONICLE_PATH + "_cmd"
-          @scribe.config[:remote_name].should == KitchenScribe::ScribeHire::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:chronicle_path].should == Chef::Knife::ScribeHire::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name].should == Chef::Knife::ScribeHire::DEFAULT_REMOTE_NAME + "_cmd"
           @scribe.config[:remote_url].should == "remote_url_cmd"
         end
       end

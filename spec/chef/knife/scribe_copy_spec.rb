@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../../../spec_helper', __FILE__)
 
-describe KitchenScribe::ScribeCopy do
+describe Chef::Knife::ScribeCopy do
   before(:each) do
-    @scribe = KitchenScribe::ScribeCopy.new
+    @scribe = Chef::Knife::ScribeCopy.new
     @scribe.configure
   end
 
@@ -115,20 +115,20 @@ describe KitchenScribe::ScribeCopy do
 
       it "uses the default values for all parameters" do
         @scribe.configure
-        @scribe.config[:chronicle_path].should == KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH
-        @scribe.config[:remote_name].should == KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME
-        @scribe.config[:branch].should == KitchenScribe::ScribeCopy::DEFAULT_BRANCH
-        @scribe.config[:commit_message].should == KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE
+        @scribe.config[:chronicle_path].should == Chef::Knife::ScribeCopy::DEFAULT_CHRONICLE_PATH
+        @scribe.config[:remote_name].should == Chef::Knife::ScribeCopy::DEFAULT_REMOTE_NAME
+        @scribe.config[:branch].should == Chef::Knife::ScribeCopy::DEFAULT_BRANCH
+        @scribe.config[:commit_message].should == Chef::Knife::ScribeCopy::DEFAULT_COMMIT_MESSAGE
       end
     end
 
     describe "when configuration is given through knife config" do
       before(:each) do
         Chef::Config[:knife][:scribe] = {}
-        Chef::Config[:knife][:scribe][:chronicle_path] = KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_knife"
-        Chef::Config[:knife][:scribe][:remote_name] =  KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_knife"
-        Chef::Config[:knife][:scribe][:branch] =  KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_knife"
-        Chef::Config[:knife][:scribe][:commit_message] = KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_knife"
+        Chef::Config[:knife][:scribe][:chronicle_path] = Chef::Knife::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_knife"
+        Chef::Config[:knife][:scribe][:remote_name] =  Chef::Knife::ScribeCopy::DEFAULT_REMOTE_NAME + "_knife"
+        Chef::Config[:knife][:scribe][:branch] =  Chef::Knife::ScribeCopy::DEFAULT_BRANCH + "_knife"
+        Chef::Config[:knife][:scribe][:commit_message] = Chef::Knife::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_knife"
         @scribe.config = {}
       end
 
@@ -148,18 +148,18 @@ describe KitchenScribe::ScribeCopy do
 
       describe "when command line configuration is given" do
         before(:each) do
-          @scribe.config[:chronicle_path] = KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
-          @scribe.config[:remote_name] =  KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
-          @scribe.config[:branch] =  KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_cmd"
-          @scribe.config[:commit_message] = KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_cmd"
+          @scribe.config[:chronicle_path] = Chef::Knife::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name] =  Chef::Knife::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:branch] =  Chef::Knife::ScribeCopy::DEFAULT_BRANCH + "_cmd"
+          @scribe.config[:commit_message] = Chef::Knife::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_cmd"
         end
 
         it "uses the configuration from command line" do
           @scribe.configure
-          @scribe.config[:chronicle_path].should == KitchenScribe::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
-          @scribe.config[:remote_name].should == KitchenScribe::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
-          @scribe.config[:branch].should == KitchenScribe::ScribeCopy::DEFAULT_BRANCH + "_cmd"
-          @scribe.config[:commit_message].should == KitchenScribe::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_cmd"
+          @scribe.config[:chronicle_path].should == Chef::Knife::ScribeCopy::DEFAULT_CHRONICLE_PATH + "_cmd"
+          @scribe.config[:remote_name].should == Chef::Knife::ScribeCopy::DEFAULT_REMOTE_NAME + "_cmd"
+          @scribe.config[:branch].should == Chef::Knife::ScribeCopy::DEFAULT_BRANCH + "_cmd"
+          @scribe.config[:commit_message].should == Chef::Knife::ScribeCopy::DEFAULT_COMMIT_MESSAGE + "_cmd"
         end
       end
     end
