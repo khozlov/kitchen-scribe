@@ -15,6 +15,8 @@ The plugin is in an early alpha (as indicated by the commit dates) so things may
 USAGE
 -----
 
+Install as gem using `gem install kitchen-scribe`.
+
 Currently Kitchen Scribe can perform two actions.
 
 First you need to hire a scribe using `knife scribe hire`. By default this will initialize a local directory called `.chronicle` where all backups will be performed. This task takes the following parameters:
@@ -25,7 +27,7 @@ First you need to hire a scribe using `knife scribe hire`. By default this will 
 
 `hire` action can be performed multiple times to set up additional remotes.
 
-Next you probably want to get your scribe to actually do something for a change. `knife scribe copy` will fully back up your `roles` and `environments` and partially backup your `nodes` (only `name`, `env`, `attributes` and `run_list`). It assumes that you already hired your scribe and by default will look for your chronicle at `.chronicle`, assume that your remote name is `origin`, your default branch name is `master` and you want each of your commit messages to say _"Commiting chef state as of [current date and time]"_. Again you may customize this using:
+Next you probably want to get your scribe to actually do something for a change. `knife scribe copy` will fully back your `roles` and `environments` up and partially back your `nodes` up (only `name`, `env`, `attributes` and `run_list`). It assumes that you already hired your scribe and by default will look for your chronicle at `.chronicle`, assume that your remote name is `origin`, your default branch name is `master` and you want each of your commit messages to say _"Commiting chef state as of [current date and time]"_. Again you may customize this using:
 
 * `-p` or `--chronicle-path` followed by a path to specify a different location for the chronicle.
 * `--remote-name` followed by a remote_name to specify a different remote name.
@@ -45,7 +47,6 @@ Have fun!
 WHAT'S THE PLAN?
 ----------------
 
-- Turn Scribe into a gem
 - Mysterious Next Step ;-)
 
 LICENSE
