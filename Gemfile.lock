@@ -25,6 +25,8 @@ GEM
     highline (1.6.15)
     ipaddress (0.8.0)
     json (1.6.1)
+    kitchen-scribe (0.1.0)
+      chef (>= 0.10.10)
     mime-types (1.19)
     mixlib-authentication (1.3.0)
       mixlib-log
@@ -70,4 +72,5 @@ PLATFORMS
 
 DEPENDENCIES
   chef
+  kitchen-scribe
   rspec

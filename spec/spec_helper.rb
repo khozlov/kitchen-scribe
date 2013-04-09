@@ -21,3 +21,4 @@ $:.unshift File.expand_path('../../lib', __FILE__)
 require 'chef/knife'
 require 'chef/knife/scribe_hire'
 require 'chef/knife/scribe_copy'
+require 'chef/knife/scribe_adjust'
