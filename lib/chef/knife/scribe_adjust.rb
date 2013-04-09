@@ -26,6 +26,7 @@ class Chef
 
       TEMPLATE_HASH = { "author_name" => "",
         "author_email" => "",
+        "description" => "",
         "action" => "merge",
         "type" => "environment",
         "search" => "",
