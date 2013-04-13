@@ -36,7 +36,7 @@ describe Chef::Knife::ScribeAdjust do
 
       it "should show usage and exit if not filename is provided" do
         @scribe.name_args = []
-        @scribe.ui.should_receive(:fatal)
+        @scribe.ui.should_receive(:fatal).with("At least one adjustment file needs to be specified!")
         @scribe.should_receive(:show_usage)
         lambda { @scribe.run }.should raise_error(SystemExit)
       end
@@ -117,12 +117,13 @@ describe Chef::Knife::ScribeAdjust do
     describe "when type param is not recognized" do
       before(:each) do
         @scribe.config[:type] = "xxxx"
+        @stdout = StringIO.new
+        @scribe.ui.stub!(:stdout).and_return(@stdout)
       end
 
-      it "saves the environment template JSON into the specified file" do
-        File.should_receive(:open).with(@filename, "w").and_yield(@f1)
-        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::ENVIRONMENT_ADJUSTMENT_TEMPLATE)))
-        @scribe.generate_template @filename
+      it "throws an error through the ui and returns" do
+        @scribe.ui.should_receive(:fatal).with("Incorrect adjustment type! Only 'node', 'environment' or 'role' allowed.")
+        lambda { @scribe.generate_template @filename }.should raise_error(SystemExit)
       end
     end
   end
@@ -143,47 +144,28 @@ describe Chef::Knife::ScribeAdjust do
 
     describe "when the adjustment hash is not a Hash" do
       it "writes an appropriate message through the ui" do
-        JSON.should_receive(:load).and_return(1)
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
-        JSON.should_receive(:load).and_return([])
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
-        JSON.should_receive(:load).and_return(nil)
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
-        JSON.should_receive(:load).and_return("test")
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
+        [1,[],nil,"test"].each do |not_a_hash|
+          JSON.should_receive(:load).and_return(not_a_hash)
+          @scribe.ui.should_receive(:fatal).with("Adjustment must be a JSON hash!")
+          @scribe.apply_adjustment(@filename)
+        end
       end
     end
 
     describe "when the adjustment hash is missing a value" do
       it "writes an appropriate message through the ui" do
-        JSON.should_receive(:load).and_return({ "type" => "environment",
-                                       "search" => "",
-                                       "adjustment" => { }
-                                     })
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
-        JSON.should_receive(:load).and_return({ "action" => "merge",
-                                       "search" => "",
-                                       "adjustment" => { }
-                                     })
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
-        JSON.should_receive(:load).and_return({ "action" => "merge",
-                                       "type" => "environment",
-                                       "adjustment" => { }
-                                     })
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
-        JSON.should_receive(:load).and_return({ "action" => "merge",
-                                       "type" => "environment",
-                                       "search" => ""
-                                     })
-        @scribe.ui.should_receive(:fatal)
-        @scribe.apply_adjustment(@filename)
+        complete_params_hash = { "action" => "merge",
+          "type" => "node",
+          "search" => "name:test",
+          "adjustment" => { }
+        }
+        complete_params_hash.keys.each do |missing_param|
+          incomplete_params_hash = complete_params_hash.clone
+          incomplete_params_hash.delete(missing_param)
+          JSON.should_receive(:load).and_return(incomplete_params_hash)
+          @scribe.ui.should_receive(:fatal).with("Adjustment hash must contain " + missing_param + "!")
+          @scribe.apply_adjustment(@filename)
+        end
       end
     end
 
@@ -201,12 +183,12 @@ describe Chef::Knife::ScribeAdjust do
       describe "when action is incorrect" do
         it "returns with ui fatal message" do
           @scribe.should_receive(:respond_to?).with(@adjustment_hash["action"]).and_return(false)
-          @scribe.ui.should_receive(:fatal)
+          @scribe.ui.should_receive(:fatal).with("Incorrect action!")
           @scribe.apply_adjustment(@filename)
         end
       end
 
-      describe "when action is incorrect" do
+      describe "when action is correct" do
         before(:each) do
           @query = double("Chef query")
           Chef::Search::Query.stub(:new).and_return(@query)
