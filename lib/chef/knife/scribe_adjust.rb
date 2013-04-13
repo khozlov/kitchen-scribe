@@ -71,6 +71,7 @@ class Chef
 
 
       alias_method :action_merge, :merge
+      alias_method :action_hash_only_merge, :hash_only_merge
 
       def run
         if @name_args[0].nil?

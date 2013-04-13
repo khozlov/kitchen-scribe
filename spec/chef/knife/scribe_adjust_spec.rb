@@ -23,6 +23,14 @@ describe Chef::Knife::ScribeAdjust do
     @scribe = Chef::Knife::ScribeAdjust.new
   end
 
+  it "responds to #action_merge" do
+    @scribe.should respond_to(:action_merge)
+  end
+
+  it "responds to #action_hash_only_merge" do
+    @scribe.should respond_to(:action_hash_only_merge)
+  end
+
   describe "#run" do
     before(:each) do
       @stdout = StringIO.new
@@ -209,7 +217,7 @@ describe Chef::Knife::ScribeAdjust do
           end
         end
 
-        it "merges each search result with the adjustment" do
+        it "applies the adjustment" do
           chef_obj = double("chef_object")
           chef_obj.stub(:to_hash).and_return( { "a" => 3, "c" => 3 } )
           chef_obj_class = double("chef_object_class")
@@ -217,7 +225,7 @@ describe Chef::Knife::ScribeAdjust do
           json_create_return_obj.stub(:save)
           chef_obj_class.stub(:json_create).and_return(json_create_return_obj)
           chef_obj.stub(:class).and_return(chef_obj_class)
-          @query.should_receive(:search).with(@adjustment_hash["type"], "name:" + @adjustment_hash["search"]).and_yield(chef_obj)
+          @query.stub(:search).with(@adjustment_hash["type"], "name:" + @adjustment_hash["search"]).and_yield(chef_obj)
           @scribe.should_receive(("action_" + @adjustment_hash["action"]).to_sym).with(chef_obj.to_hash, @adjustment_hash["adjustment"]).and_return({ "a" => 1, "b" => 2, "c" => 3})
           @scribe.apply_adjustment(@filename)
         end
