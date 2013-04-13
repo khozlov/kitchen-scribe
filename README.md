@@ -66,12 +66,13 @@ Only one adjustment is expected per a single file.
 
 You can use `adjust` with a `-g` or `--generate` option. It will then fill all the files specified with an adjustment template (overwriting any existing content of the files).
 
+An additional option `-t` or `--type` allows you to decide what adjustment template should be used (possible variants are `environment`, `role` and `node` - `environment` being the default)
+
 
 Have fun!
 
 WHAT'S THE PLAN?
 ----------------
-* Separate templates for environments, roles and nodes
 * Error handling for malformed JSON
 * More actions (like delete, hash only merge, overwrite, …)
 * Integration with scribe copy to record the changes as they occur

@@ -29,9 +29,26 @@ class Chef
         "description" => "",
         "action" => "merge",
         "type" => "environment",
-        "search" => "",
+        "search" => ""
+      }
+
+      ENVIRONMENT_ADJUSTMENT_TEMPLATE = {
         "adjustment" => { "default_attributes" => { },
-          "override_attributes" => { }
+          "override_attributes" => { },
+          "cookbook_versions" => { }
+        }
+      }
+
+      ROLE_ADJUSTMENT_TEMPLATE = {
+        "adjustment" => { "default_attributes" => { },
+          "override_attributes" => { },
+          "run_list" => [ ]
+        }
+      }
+
+      NODE_ADJUSTMENT_TEMPLATE = {
+        "adjustment" => { "attributes" => { },
+          "run_list" => [ ]
         }
       }
 
@@ -45,6 +62,12 @@ class Chef
       :short => "-g",
       :long  => "--generate",
       :description => "generate adjustment templates"
+
+      option :type,
+      :short => "-t",
+      :long  => "--type",
+      :description => "generate adjustment templates"
+
 
       alias_method :action_merge, :merge
 
@@ -64,7 +87,8 @@ class Chef
       end
 
       def generate_template(filename)
-        File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH)) }
+        type = ["environment", "role", "node"].include?(config[:type]) ? config[:type] : "environment"
+        File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH.merge(self.class.class_eval(type.upcase + "_ADJUSTMENT_TEMPLATE")))) }
       end
 
       def apply_adjustment(filename)

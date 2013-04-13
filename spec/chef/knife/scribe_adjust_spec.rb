@@ -63,7 +63,7 @@ describe Chef::Knife::ScribeAdjust do
           @scribe.config[:generate] = nil
         end
 
-        it "generates adjustment templates for each filename specified" do
+        it "applies all adjustments specified" do
           @scribe.name_args.each { |filename| @scribe.should_receive(:apply_adjustment).with(filename) }
           @scribe.run
         end
@@ -78,10 +78,52 @@ describe Chef::Knife::ScribeAdjust do
       @filename = "spec1.json"
     end
 
-    it "saves the template JSON into the specified file" do
-      File.should_receive(:open).with(@filename, "w").and_yield(@f1)
-      @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH))
-      @scribe.generate_template @filename
+    describe "when type param is 'enviroment'" do
+      before(:each) do
+        @scribe.config[:type] = "environment"
+      end
+
+      it "saves the environment template JSON into the specified file" do
+        File.should_receive(:open).with(@filename, "w").and_yield(@f1)
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::ENVIRONMENT_ADJUSTMENT_TEMPLATE)))
+        @scribe.generate_template @filename
+      end
+    end
+
+    describe "when type param is 'node'" do
+      before(:each) do
+        @scribe.config[:type] = "node"
+      end
+
+      it "saves the environment template JSON into the specified file" do
+        File.should_receive(:open).with(@filename, "w").and_yield(@f1)
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::NODE_ADJUSTMENT_TEMPLATE)))
+        @scribe.generate_template @filename
+      end
+    end
+
+    describe "when type param is 'role'" do
+      before(:each) do
+        @scribe.config[:type] = "role"
+      end
+
+      it "saves the environment template JSON into the specified file" do
+        File.should_receive(:open).with(@filename, "w").and_yield(@f1)
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::ROLE_ADJUSTMENT_TEMPLATE)))
+        @scribe.generate_template @filename
+      end
+    end
+
+    describe "when type param is not recognized" do
+      before(:each) do
+        @scribe.config[:type] = "xxxx"
+      end
+
+      it "saves the environment template JSON into the specified file" do
+        File.should_receive(:open).with(@filename, "w").and_yield(@f1)
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::ENVIRONMENT_ADJUSTMENT_TEMPLATE)))
+        @scribe.generate_template @filename
+      end
     end
   end
 
