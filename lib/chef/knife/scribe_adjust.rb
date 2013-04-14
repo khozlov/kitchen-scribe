@@ -97,6 +97,7 @@ class Chef
         File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH.merge(self.class.class_eval(config[:type].upcase + "_ADJUSTMENT_TEMPLATE")))) }
       end
 
+      # TODO: Refactor
       def apply_adjustment(filename)
         adjustment_hash = File.open(filename, "r") { |file| JSON.load(file) }
         return ui.fatal("Adjustment must be a JSON hash!") unless adjustment_hash.kind_of?(Hash)
@@ -107,6 +108,16 @@ class Chef
         query = adjustment_hash["search"].include?(":") ? adjustment_hash["search"] : "name:" + adjustment_hash["search"]
         Chef::Search::Query.new.search(adjustment_hash["type"], query ) do |result|
           result.class.json_create(send(("action_" + adjustment_hash["action"]).to_sym, result.to_hash, adjustment_hash["adjustment"])).save
+        end
+      end
+
+      def action_overwrite(base, overwrite_with)
+        if base.kind_of?(Hash) && overwrite_with.kind_of?(Hash)
+          base.merge(overwrite_with)
+        elsif overwrite_with.nil?
+          base
+        else
+          overwrite_with
         end
       end
     end

@@ -31,6 +31,10 @@ describe Chef::Knife::ScribeAdjust do
     @scribe.should respond_to(:action_hash_only_merge)
   end
 
+  it "responds to #action_overwrite" do
+    @scribe.should respond_to(:action_overwrite)
+  end
+
   describe "#run" do
     before(:each) do
       @stdout = StringIO.new
@@ -230,6 +234,29 @@ describe Chef::Knife::ScribeAdjust do
           @scribe.apply_adjustment(@filename)
         end
       end
+    end
+  end
+
+  describe "#action_overwrite" do
+    it "performs a standard hash merge when the both base and overwrite_with are hashes" do
+      base = { "a" => 1, "b" => [1,2,3], "c" => { "x" => 1, "y" => 2 } }
+      overwrite_with = { "b" => [4], "c" => { "z" => 1, "y" => 3}, "d" => 3 }
+      base.should_receive(:merge).with(overwrite_with)
+      @scribe.action_overwrite(base,overwrite_with)
+    end
+
+    it "returns base hash if overwrite_with is nil" do
+      base = {"foo" => "bar"}
+      overwrite_with = nil
+      result = @scribe.action_overwrite(base,overwrite_with)
+      result.should eq(base)
+    end
+
+    it "returns the overwrite if base is not a hash" do
+      base = "test"
+      overwrite_with = {"a" => 1}
+      result = @scribe.action_overwrite(base,overwrite_with)
+      result.should eq(overwrite_with)
     end
   end
 end
