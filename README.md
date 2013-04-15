@@ -74,7 +74,6 @@ Have fun!
 WHAT'S THE PLAN?
 ----------------
 * Error handling for malformed JSON
-* More actions (like delete, hash only merge, overwrite, …)
 * Integration with scribe copy to record the changes as they occur
 * Reviewing changes via diff
 * All-or-nothing adjustments

@@ -35,6 +35,10 @@ describe Chef::Knife::ScribeAdjust do
     @scribe.should respond_to(:action_overwrite)
   end
 
+  it "responds to #action_delete" do
+    @scribe.should respond_to(:action_delete)
+  end
+
   describe "#run" do
     before(:each) do
       @stdout = StringIO.new
@@ -238,7 +242,7 @@ describe Chef::Knife::ScribeAdjust do
   end
 
   describe "#action_overwrite" do
-    it "performs a standard hash merge when the both base and overwrite_with are hashes" do
+    it "performs a standard hash merge when both base and overwrite_with are hashes" do
       base = { "a" => 1, "b" => [1,2,3], "c" => { "x" => 1, "y" => 2 } }
       overwrite_with = { "b" => [4], "c" => { "z" => 1, "y" => 3}, "d" => 3 }
       base.should_receive(:merge).with(overwrite_with)
@@ -253,6 +257,120 @@ describe Chef::Knife::ScribeAdjust do
     end
 
     it "returns the overwrite if base is not a hash" do
+      base = "test"
+      overwrite_with = {"a" => 1}
+      result = @scribe.action_overwrite(base,overwrite_with)
+      result.should eq(overwrite_with)
+    end
+  end
+
+  describe "#deep_delete" do
+    it "calls #seedp_delete! with duplicates of it's arguments" do
+      delete_from = double("delete_from")
+      delete_spec = double("delete_spec")
+      delete_from_dup = double("delete_from_dup")
+      delete_spec_dup = double("delete_spec_dup")
+      delete_from.should_receive(:dup).and_return(delete_from_dup)
+      delete_spec.should_receive(:dup).and_return(delete_spec_dup)
+      @scribe.should_receive(:deep_delete!).with(delete_from_dup, delete_spec_dup)
+      @scribe.deep_delete(delete_from, delete_spec)
+    end
+  end
+
+  describe "#deep_delete!" do
+    describe "when both base and overwrite_with are hashes" do
+      before(:each) do
+        @delete_from = { "a" => 1, "b" => [3,2,1], "c" => { "x" => 1, "y" => 2 } }
+      end
+
+      describe "when the spec intructs it to delete a top level key" do
+        before(:each) do
+          @delete_spec = "c"
+        end
+
+        it "deletes it" do
+          @scribe.deep_delete!(@delete_from,@delete_spec).keys.should_not include("c")
+        end
+      end
+
+      describe "when the spec intructs it to delete a nested key" do
+        before(:each) do
+          @delete_spec = { "c" => "x" }
+        end
+
+        it "doesn't delete the top level key" do
+          @scribe.deep_delete!(@delete_from,@delete_spec).keys.should include("c")
+        end
+
+        it "deletes it" do
+          @scribe.deep_delete!(@delete_from,@delete_spec)["c"].keys.should_not include("x")
+        end
+      end
+
+      describe "when the spec intructs it to delete an array key that exists" do
+        before(:each) do
+          @delete_spec = { "b" => 1 }
+        end
+
+        it "deletes it" do
+          @scribe.deep_delete!(@delete_from,@delete_spec)["b"].should eq([3,1])
+        end
+      end
+
+      describe "when the spec intructs it to delete an array key that doesn't exist" do
+        before(:each) do
+          @delete_spec = { "b" => 10 }
+        end
+
+        it "does nothing" do
+          @scribe.deep_delete!(@delete_from,@delete_spec)["b"].should eq(@delete_from["b"])
+        end
+      end
+
+      describe "when the spec intructs it to delete a hash key that doesn't exist" do
+        before(:each) do
+          @delete_spec = { "c" => { "not_here" => [1,2] } }
+        end
+
+        it "does nothing" do
+          @scribe.deep_delete!(@delete_from,@delete_spec)["c"].should eq(@delete_from["c"])
+        end
+      end
+
+      describe "when the spec intructs it to delete a set of nested keys" do
+        before(:each) do
+          @delete_spec = { "c" => ["x", "y"] }
+        end
+
+        it "doesn't delete the top level key" do
+          @scribe.deep_delete!(@delete_from,@delete_spec).keys.should include("c")
+        end
+
+        it "deletes both of them" do
+          @scribe.deep_delete!(@delete_from,@delete_spec)["c"].keys.should_not include("x","y")
+        end
+      end
+
+      describe "when the spec intructs it to delete a set of top level keys" do
+        before(:each) do
+          @delete_spec = [ "b", "c"]
+        end
+
+        it "deletes both of them" do
+          @scribe.deep_delete!(@delete_from,@delete_spec).keys.should_not include("b","c")
+        end
+      end
+
+    end
+
+    it "returns delete_from if delete_spec is nil" do
+      delete_from = {"foo" => "bar"}
+      delete_spec = nil
+      result = @scribe.deep_delete!(delete_from,delete_spec)
+      result.should eq(delete_from)
+    end
+
+    it "returns delete_from if delete_from is not a hash or an array" do
       base = "test"
       overwrite_with = {"a" => 1}
       result = @scribe.action_overwrite(base,overwrite_with)

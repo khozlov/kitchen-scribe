@@ -69,7 +69,6 @@ class Chef
       :description => "generate adjustment templates [environemnt|node|role]",
       :default => "environment"
 
-
       alias_method :action_merge, :merge
       alias_method :action_hash_only_merge, :hash_only_merge
 
@@ -120,6 +119,25 @@ class Chef
           overwrite_with
         end
       end
+    end
+
+    def deep_delete(delete_from, delete_spec)
+      deep_delete!(delete_from.dup, delete_spec.dup)
+    end
+
+    alias_method :action_delete, :deep_delete
+
+    def deep_delete!(delete_from, delete_spec)
+      if delete_from.kind_of?(Hash) || delete_from.kind_of?(Array)
+        if delete_spec.kind_of?(Array)
+          delete_spec.each { |item| deep_delete!(delete_from, item) }
+        elsif delete_spec.kind_of?(Hash)
+          delete_spec.each { |key,item| deep_delete!(delete_from[key], item) }
+        else
+          delete_from.kind_of?(Array) ? delete_from.delete_at(delete_spec) : delete_from.delete(delete_spec)
+        end
+      end
+      delete_from
     end
   end
 end
