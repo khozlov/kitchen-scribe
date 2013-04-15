@@ -96,18 +96,42 @@ class Chef
         File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH.merge(self.class.class_eval(config[:type].upcase + "_ADJUSTMENT_TEMPLATE")))) }
       end
 
-      # TODO: Refactor
       def apply_adjustment(filename)
-        adjustment_hash = File.open(filename, "r") { |file| JSON.load(file) }
-        return ui.fatal("Adjustment must be a JSON hash!") unless adjustment_hash.kind_of?(Hash)
+        if !File.exists?(filename)
+          ui.fatal("File " + filename + " does not exist!")
+        else
+          begin
+            adjustment_hash = File.open(filename, "r") { |file| JSON.load(file) }
+            if adjustment_valid? adjustment_hash
+              query = adjustment_hash["search"].include?(":") ? adjustment_hash["search"] : "name:" + adjustment_hash["search"]
+              Chef::Search::Query.new.search(adjustment_hash["type"], query ) do |result|
+                result.class.json_create(send(("action_" + adjustment_hash["action"]).to_sym, result.to_hash, adjustment_hash["adjustment"])).save
+              end
+            end
+          rescue JSON::ParserError
+            ui.fatal("Malformed JSON in " + filename + "!")
+          end
+        end
+      end
+
+      def adjustment_valid? adjustment
+        unless adjustment.kind_of?(Hash)
+          ui.fatal("Adjustment must be a JSON hash!")
+          return false
+        end
+
         ["action", "type", "search", "adjustment"].each do |required_key|
-          return ui.fatal("Adjustment hash must contain " + required_key + "!") unless adjustment_hash.has_key?(required_key)
+          unless adjustment.has_key?(required_key)
+            ui.fatal("Adjustment hash must contain " + required_key + "!")
+            return false
+          end
         end
-        return ui.fatal("Incorrect action!") unless respond_to?(adjustment_hash["action"])
-        query = adjustment_hash["search"].include?(":") ? adjustment_hash["search"] : "name:" + adjustment_hash["search"]
-        Chef::Search::Query.new.search(adjustment_hash["type"], query ) do |result|
-          result.class.json_create(send(("action_" + adjustment_hash["action"]).to_sym, result.to_hash, adjustment_hash["adjustment"])).save
+
+        unless respond_to?(adjustment["action"])
+          ui.fatal("Incorrect action!")
+          return false
         end
+        true
       end
 
       def action_overwrite(base, overwrite_with)

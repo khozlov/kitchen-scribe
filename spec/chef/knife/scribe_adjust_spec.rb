@@ -144,32 +144,18 @@ describe Chef::Knife::ScribeAdjust do
     end
   end
 
-  describe "#apply_adjustment" do
-    before(:each) do
-      @filename = "spec1.json"
-      @file = double("adjustment file")
-      File.stub(:open).and_yield(@file)
-    end
-
-    it "parses the adjustment file" do
-      File.should_receive(:open).with(@filename, "r").and_yield(@file)
-      JSON.should_receive(:load).with(@file)
-      @scribe.ui.stub(:fatal)
-      @scribe.apply_adjustment(@filename)
-    end
-
+  describe "#adjustment_valid?" do
     describe "when the adjustment hash is not a Hash" do
-      it "writes an appropriate message through the ui" do
+      it "writes an appropriate message through the ui and returns false" do
         [1,[],nil,"test"].each do |not_a_hash|
-          JSON.should_receive(:load).and_return(not_a_hash)
           @scribe.ui.should_receive(:fatal).with("Adjustment must be a JSON hash!")
-          @scribe.apply_adjustment(@filename)
+          @scribe.adjustment_valid?(not_a_hash).should be_false
         end
       end
     end
 
     describe "when the adjustment hash is missing a value" do
-      it "writes an appropriate message through the ui" do
+      it "writes an appropriate message through the ui and returns flase" do
         complete_params_hash = { "action" => "merge",
           "type" => "node",
           "search" => "name:test",
@@ -178,34 +164,114 @@ describe Chef::Knife::ScribeAdjust do
         complete_params_hash.keys.each do |missing_param|
           incomplete_params_hash = complete_params_hash.clone
           incomplete_params_hash.delete(missing_param)
-          JSON.should_receive(:load).and_return(incomplete_params_hash)
           @scribe.ui.should_receive(:fatal).with("Adjustment hash must contain " + missing_param + "!")
-          @scribe.apply_adjustment(@filename)
+          @scribe.adjustment_valid?(incomplete_params_hash).should be_false
         end
       end
     end
 
-    describe "when the adustment hash contains all required keys" do
+    describe "when action is incorrect" do
+      before(:each) do
+        @adjustment_hash = { "action" => "xxxxxx",
+          "type" => "environment",
+          "search" => "test",
+          "adjustment" => { "a" => 1, "b" => 2 }
+        }
+      end
+
+      it "returns false with ui fatal message" do
+        @scribe.should_receive(:respond_to?).with(@adjustment_hash["action"]).and_return(false)
+        @scribe.ui.should_receive(:fatal).with("Incorrect action!")
+        @scribe.adjustment_valid?(@adjustment_hash).should be_false
+      end
+    end
+
+    describe "when action is correct" do
       before(:each) do
         @adjustment_hash = { "action" => "merge",
           "type" => "environment",
           "search" => "test",
           "adjustment" => { "a" => 1, "b" => 2 }
         }
+      end
+
+      it "returns true without any ui message" do
+        @scribe.should_receive(:respond_to?).with(@adjustment_hash["action"]).and_return(true)
+        @scribe.ui.should_not_receive(:fatal).with("Incorrect action!")
+        @scribe.adjustment_valid?(@adjustment_hash).should be_true
+      end
+    end
+
+  end
+
+  describe "#apply_adjustment" do
+    before(:each) do
+      @filename = "spec1.json"
+      @file = double("adjustment file")
+      File.stub(:open).and_yield(@file)
+      File.stub(:open).with(@filename, "r").and_yield(@file)
+      @adjustment_hash = { "action" => "merge",
+        "type" => "environment",
+        "search" => "test",
+        "adjustment" => { "a" => 1, "b" => 2 }
+      }
+      File.stub(:exists?).and_return(true)
+      @scribe.ui.stub(:fatal)
+    end
+
+    it "checks if the file exists" do
+      File.should_receive(:exists?).with(@filename).and_return(false)
+      @scribe.apply_adjustment(@filename)
+    end
+
+    describe "when the file does not exist" do
+      before(:each) do
+        File.stub(:exists?).and_return(false)
+      end
+
+      it "returns writes a fatal error through the ui" do
+        @scribe.ui.should_receive(:fatal).with("File " + @filename + " does not exist!")
+        @scribe.apply_adjustment(@filename)
+      end
+
+      it "doesn't attempt to open the file" do
+        File.should_not_receive(:open).with(@filename)
+        @scribe.apply_adjustment(@filename)
+      end
+    end
+
+    it "parses the adjustment file" do
+      File.should_receive(:open).with(@filename, "r").and_yield(@file)
+      JSON.should_receive(:load).with(@file)
+      @scribe.stub(:adjustment_valid?).and_return(false)
+      @scribe.apply_adjustment(@filename)
+    end
+
+    describe "when the JSON file is malformed" do
+      it "returns writes a fatal error through the ui" do
+        @scribe.ui.should_receive(:fatal).with("Malformed JSON in " + @filename + "!")
+        @scribe.apply_adjustment(@filename)
+      end
+
+      it "doesn't throw an exception" do
+        File.should_receive(:open).with(@filename, "r").and_yield('{"a" : 3, b => ]')
+        lambda { @scribe.apply_adjustment(@filename) }.should_not raise_error(JSON::ParserError)
+      end
+    end
+
+    describe "when the file exists and is well formed" do
+      before(:each) do
         JSON.stub(:load).and_return(@adjustment_hash)
-        @chef_query = double("Chef query")
       end
 
-      describe "when action is incorrect" do
-        it "returns with ui fatal message" do
-          @scribe.should_receive(:respond_to?).with(@adjustment_hash["action"]).and_return(false)
-          @scribe.ui.should_receive(:fatal).with("Incorrect action!")
-          @scribe.apply_adjustment(@filename)
-        end
+      it "checks if the adjustment is valid" do
+        @scribe.should_receive(:adjustment_valid?).with(@adjustment_hash).and_return(false)
+        @scribe.apply_adjustment(@filename)
       end
 
-      describe "when action is correct" do
+      describe "when the #adustment_valid? returns true" do
         before(:each) do
+          @scribe.stub(:adjustment_valid?).and_return(true)
           @query = double("Chef query")
           Chef::Search::Query.stub(:new).and_return(@query)
         end
