@@ -55,12 +55,51 @@ You can also specify all the params in your `knife.rb` not to type it in every t
 
 I takes any amount of filenames (but at least one) with the changes specified in a JSON object containing at least:
 
-* `action` - The actual action to perform. Currently only `merge` is supported
+* `action` - The actual action to perform.
 * `type` - What you are trying to update. It can be either `environment`, `role` or `node`
 * `search` - the search query that will be used to figure out what to update. If a simple string is given (without a `:` character) scribe will assume it's a name and act accordingly 
 * `adjustment` - the hash containing the actual changes
 
 Use of `author_name`, `author_email` and `description` is encouraged to document your adjustments but is not requried at this time.
+
+The action to perform can be one of the following:
+
+* `merge` - a deep merge that combines the chef object with the adjustment, adding new entries and updating values. Arrays will be combined.
+* `hash_only_merge` - same as merge but arrays will be overwritten instead of combined.
+* `overwrite` - a simple merge on the top level of the chef object. Usefull for overwriting run lists.
+* `delete` - as the name suggests it can be used to delete parts of the config. The adjustment may be an integer or string in which case scribe will attempt to remove this key from the objec at the top level. It can be hash, which scribe treats as a map to the key that needs to be removed. Finally It can be an array which represents a set of changes that needs to be done on a single level. A quick example:
+
+  With a simple envrionment
+
+      { "chef_type": "environment"
+        "cookbook_versions": { "apache2": "<= 1.1.8",
+                               "apt": "<= 1.4.9"
+                             },
+        "default_attributes": { "env" : "dev",
+                                "ports" : [ 80, 8080 ],
+                                "app" : { "storage_method" : "s3",
+                                          "storage_url" : "foo.bar"
+                                        }
+                              }
+      }
+
+  Applying the folowing `delete` adjustment
+
+      { "default_attributes" : [ "env",
+                                 { "app" : "storage_method" },
+                                 { "ports" : 0 }
+								],
+		"cookbook_versions" : "apt"
+	  }
+
+  Will remove default_attributes/env, default_attributes/app/storage_method, cookbook_versions/apt keys and first port from the default_attributes/ports array. The final product will be:
+
+      { "chef_type": "environment"
+        "cookbook_versions": { "apache2": "<= 1.1.8" }
+        "default_attributes": { "ports" : [ 8080 ],
+                                "app" : { "storage_url" : "foo.bar" }
+        }
+      }
 
 Only one adjustment is expected per a single file.
 
@@ -73,7 +112,6 @@ Have fun!
 
 WHAT'S THE PLAN?
 ----------------
-* Error handling for malformed JSON
 * Integration with scribe copy to record the changes as they occur
 * Reviewing changes via diff
 * All-or-nothing adjustments

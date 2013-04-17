@@ -64,8 +64,8 @@ class Chef
       :description => "generate adjustment templates"
 
       option :type,
-      :short => "-t",
-      :long  => "--type",
+      :short => "-t TYPE",
+      :long  => "--type TYPE",
       :description => "generate adjustment templates [environemnt|node|role]",
       :default => "environment"
 
@@ -127,7 +127,7 @@ class Chef
           end
         end
 
-        unless respond_to?(adjustment["action"])
+        unless respond_to?("action_" + adjustment["action"])
           ui.fatal("Incorrect action!")
           return false
         end
