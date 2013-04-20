@@ -27,9 +27,7 @@ class Chef
       TEMPLATE_HASH = { "author_name" => "",
         "author_email" => "",
         "description" => "",
-        "action" => "merge",
-        "type" => "environment",
-        "search" => ""
+        "adjustments" => []
       }
 
       ENVIRONMENT_ADJUSTMENT_TEMPLATE = {
@@ -92,8 +90,8 @@ class Chef
           ui.fatal("Incorrect adjustment type! Only 'node', 'environment' or 'role' allowed.")
           exit 1
         end
-        # TODO: This line needs to be refactored into something readable
-        File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH.merge(self.class.class_eval(config[:type].upcase + "_ADJUSTMENT_TEMPLATE")))) }
+        TEMPLATE_HASH["adjustments"] = [self.class.class_eval(config[:type].upcase + "_ADJUSTMENT_TEMPLATE")]
+        File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH)) }
       end
 
       def apply_adjustment(filename)
@@ -101,17 +99,34 @@ class Chef
           ui.fatal("File " + filename + " does not exist!")
         else
           begin
-            adjustment_hash = File.open(filename, "r") { |file| JSON.load(file) }
-            if adjustment_valid? adjustment_hash
-              query = adjustment_hash["search"].include?(":") ? adjustment_hash["search"] : "name:" + adjustment_hash["search"]
-              Chef::Search::Query.new.search(adjustment_hash["type"], query ) do |result|
-                result.class.json_create(send(("action_" + adjustment_hash["action"]).to_sym, result.to_hash, adjustment_hash["adjustment"])).save
+            adjustment_file = File.open(filename, "r") { |file| JSON.load(file) }
+            if adjustment_file_valid? adjustment_file
+              adjustment_file["adjustments"].each do |adjustment|
+                if adjustment_valid? adjustment
+                  query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
+                  Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
+                    result.class.json_create(send(("action_" + adjustment["action"]).to_sym, result.to_hash, adjustment["adjustment"])).save
+                  end
+                end
               end
             end
           rescue JSON::ParserError
             ui.fatal("Malformed JSON in " + filename + "!")
           end
         end
+      end
+
+      def adjustment_file_valid? adjustment_file
+        unless adjustment_file.kind_of?(Hash)
+          ui.fatal("Adjustment file must contain a JSON hash!")
+          return false
+        end
+
+        unless adjustment_file["adjustments"].kind_of?(Array)
+          ui.fatal("Adjustment file must contain an array of adjustments!")
+          return false
+        end
+        true
       end
 
       def adjustment_valid? adjustment

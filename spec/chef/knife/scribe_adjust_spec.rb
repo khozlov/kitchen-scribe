@@ -101,7 +101,8 @@ describe Chef::Knife::ScribeAdjust do
 
       it "saves the environment template JSON into the specified file" do
         File.should_receive(:open).with(@filename, "w").and_yield(@f1)
-        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::ENVIRONMENT_ADJUSTMENT_TEMPLATE)))
+        Chef::Knife::ScribeAdjust::TEMPLATE_HASH["adjustments"] = [Chef::Knife::ScribeAdjust::ENVIRONMENT_ADJUSTMENT_TEMPLATE]
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH))
         @scribe.generate_template @filename
       end
     end
@@ -113,7 +114,8 @@ describe Chef::Knife::ScribeAdjust do
 
       it "saves the environment template JSON into the specified file" do
         File.should_receive(:open).with(@filename, "w").and_yield(@f1)
-        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::NODE_ADJUSTMENT_TEMPLATE)))
+        Chef::Knife::ScribeAdjust::TEMPLATE_HASH["adjustments"] = [Chef::Knife::ScribeAdjust::NODE_ADJUSTMENT_TEMPLATE]
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH))
         @scribe.generate_template @filename
       end
     end
@@ -125,7 +127,8 @@ describe Chef::Knife::ScribeAdjust do
 
       it "saves the environment template JSON into the specified file" do
         File.should_receive(:open).with(@filename, "w").and_yield(@f1)
-        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH.merge(Chef::Knife::ScribeAdjust::ROLE_ADJUSTMENT_TEMPLATE)))
+        Chef::Knife::ScribeAdjust::TEMPLATE_HASH["adjustments"] = [Chef::Knife::ScribeAdjust::ROLE_ADJUSTMENT_TEMPLATE]
+        @f1.should_receive(:write).with(JSON.pretty_generate(Chef::Knife::ScribeAdjust::TEMPLATE_HASH))
         @scribe.generate_template @filename
       end
     end
@@ -140,6 +143,43 @@ describe Chef::Knife::ScribeAdjust do
       it "throws an error through the ui and returns" do
         @scribe.ui.should_receive(:fatal).with("Incorrect adjustment type! Only 'node', 'environment' or 'role' allowed.")
         lambda { @scribe.generate_template @filename }.should raise_error(SystemExit)
+      end
+    end
+  end
+
+  describe "#adjustment_file_valid?" do
+    describe "when the contants of the file is not a Hash" do
+      it "writes an appropriate message through the ui and returns false" do
+        [1,[],nil,"test"].each do |not_a_hash|
+          @scribe.ui.should_receive(:fatal).with("Adjustment file must contain a JSON hash!")
+          @scribe.adjustment_file_valid?(not_a_hash).should be_false
+        end
+      end
+    end
+
+    describe "when the adjustment hash is missing 'adjustments'" do
+      it "writes an appropriate message through the ui and returns false" do
+        parsed_file = { "author_email" => "test@mail.com",
+          "author_name" => "test",
+          "description" => "test description"
+        }
+        @scribe.ui.should_receive(:fatal).with("Adjustment file must contain an array of adjustments!")
+        @scribe.adjustment_file_valid?(parsed_file).should be_false
+      end
+    end
+
+    describe "when the adjustment hash is missing 'adjustments' key doesn't point to an array" do
+      it "writes an appropriate message through the ui and returns false" do
+        parsed_file = { "author_email" => "test@mail.com",
+          "author_name" => "test",
+          "description" => "test description",
+          "adjustments" => 1
+        }
+        [1,{},nil,"test"].each do |not_an_array|
+          parsed_file["adjustments"] = not_an_array
+          @scribe.ui.should_receive(:fatal).with("Adjustment file must contain an array of adjustments!")
+          @scribe.adjustment_file_valid?(parsed_file).should be_false
+        end
       end
     end
   end
@@ -180,7 +220,7 @@ describe Chef::Knife::ScribeAdjust do
       end
 
       it "returns false with ui fatal message" do
-        @scribe.should_receive(:respond_to?).with(@adjustment_hash["action"]).and_return(false)
+        @scribe.should_receive(:respond_to?).with("action_" + @adjustment_hash["action"]).and_return(false)
         @scribe.ui.should_receive(:fatal).with("Incorrect action!")
         @scribe.adjustment_valid?(@adjustment_hash).should be_false
       end
@@ -196,7 +236,7 @@ describe Chef::Knife::ScribeAdjust do
       end
 
       it "returns true without any ui message" do
-        @scribe.should_receive(:respond_to?).with(@adjustment_hash["action"]).and_return(true)
+        @scribe.should_receive(:respond_to?).with("action_" + @adjustment_hash["action"]).and_return(true)
         @scribe.ui.should_not_receive(:fatal).with("Incorrect action!")
         @scribe.adjustment_valid?(@adjustment_hash).should be_true
       end
@@ -210,10 +250,20 @@ describe Chef::Knife::ScribeAdjust do
       @file = double("adjustment file")
       File.stub(:open).and_yield(@file)
       File.stub(:open).with(@filename, "r").and_yield(@file)
-      @adjustment_hash = { "action" => "merge",
-        "type" => "environment",
-        "search" => "test",
-        "adjustment" => { "a" => 1, "b" => 2 }
+      @adjustment_hash = { "author_name" => "test",
+        "author_email" => "test@test.com",
+        "description" => "test description",
+        "adjustments" => [{ "action" => "merge",
+                            "type" => "environment",
+                            "search" => "test",
+                            "adjustment" => { "a" => 1, "b" => 2 }
+                          },
+                          { "action" => "delete",
+                            "type" => "node",
+                            "search" => "foo:bar",
+                            "adjustment" => { "a" => 1, "b" => 2 }
+                          }
+                         ]
       }
       File.stub(:exists?).and_return(true)
       @scribe.ui.stub(:fatal)
@@ -264,44 +314,57 @@ describe Chef::Knife::ScribeAdjust do
         JSON.stub(:load).and_return(@adjustment_hash)
       end
 
-      it "checks if the adjustment is valid" do
-        @scribe.should_receive(:adjustment_valid?).with(@adjustment_hash).and_return(false)
+      it "checks if the adjustment file is valid" do
+        @scribe.should_receive(:adjustment_file_valid?).with(@adjustment_hash).and_return(false)
         @scribe.apply_adjustment(@filename)
       end
 
-      describe "when the #adustment_valid? returns true" do
-        before(:each) do
-          @scribe.stub(:adjustment_valid?).and_return(true)
-          @query = double("Chef query")
-          Chef::Search::Query.stub(:new).and_return(@query)
-        end
+      describe "if the adjustment file is correct" do
 
-        describe "when search parameter doesn't contain a ':' character" do
-          it "performs a search using the 'search' parameter as a name" do
-            @query.should_receive(:search).with(@adjustment_hash["type"], "name:" + @adjustment_hash["search"])
-            @scribe.apply_adjustment(@filename)
+        it "checks if each adjustment is valid" do
+          @adjustment_hash["adjustments"].each do |adjustment|
+            @scribe.should_receive(:adjustment_valid?).with(adjustment).and_return(false)
           end
-        end
-
-        describe "when search parameter contains a ':' character" do
-          it "performs a search using the 'search' parameter as a complete query" do
-            @adjustment_hash["search"] = "testkey:testvalue"
-            @query.should_receive(:search).with(@adjustment_hash["type"], @adjustment_hash["search"])
-            @scribe.apply_adjustment(@filename)
-          end
-        end
-
-        it "applies the adjustment" do
-          chef_obj = double("chef_object")
-          chef_obj.stub(:to_hash).and_return( { "a" => 3, "c" => 3 } )
-          chef_obj_class = double("chef_object_class")
-          json_create_return_obj = double("final_chef_object")
-          json_create_return_obj.stub(:save)
-          chef_obj_class.stub(:json_create).and_return(json_create_return_obj)
-          chef_obj.stub(:class).and_return(chef_obj_class)
-          @query.stub(:search).with(@adjustment_hash["type"], "name:" + @adjustment_hash["search"]).and_yield(chef_obj)
-          @scribe.should_receive(("action_" + @adjustment_hash["action"]).to_sym).with(chef_obj.to_hash, @adjustment_hash["adjustment"]).and_return({ "a" => 1, "b" => 2, "c" => 3})
           @scribe.apply_adjustment(@filename)
+        end
+
+        describe "when an adjustment is valid" do
+          before(:each) do
+            @scribe.stub(:adjustment_valid?).and_return(true)
+            @query = double("Chef query")
+            Chef::Search::Query.stub(:new).and_return(@query)
+          end
+
+          describe "when search parameter doesn't contain a ':' character" do
+            it "performs a search using the 'search' parameter as a name" do
+              @adjustment_hash["adjustments"].delete_at(1)
+              @query.should_receive(:search).with(@adjustment_hash["adjustments"][0]["type"], "name:" + @adjustment_hash["adjustments"][0]["search"])
+              @scribe.apply_adjustment(@filename)
+            end
+          end
+
+          describe "when search parameter contains a ':' character" do
+            it "performs a search using the 'search' parameter as a complete query" do
+              @adjustment_hash["adjustments"].delete_at(0)
+              @query.should_receive(:search).with(@adjustment_hash["adjustments"][0]["type"], @adjustment_hash["adjustments"][0]["search"])
+              @scribe.apply_adjustment(@filename)
+            end
+          end
+
+          it "applies the adjustment" do
+            chef_obj = double("chef_object")
+            chef_obj.stub(:to_hash).and_return( { "a" => 3, "c" => 3 } )
+            chef_obj_class = double("chef_object_class")
+            json_create_return_obj = double("final_chef_object")
+            json_create_return_obj.stub(:save)
+            chef_obj_class.stub(:json_create).and_return(json_create_return_obj)
+            chef_obj.stub(:class).and_return(chef_obj_class)
+            @query.stub(:search).and_yield(chef_obj)
+            @adjustment_hash["adjustments"].each do |adjustment|
+              @scribe.should_receive(("action_" + adjustment["action"]).to_sym).with(chef_obj.to_hash, adjustment["adjustment"])
+            end
+            @scribe.apply_adjustment(@filename)
+          end
         end
       end
     end

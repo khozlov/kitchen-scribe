@@ -53,14 +53,12 @@ You can also specify all the params in your `knife.rb` not to type it in every t
 
 `adjust` action is your friend here.
 
-I takes any amount of filenames (but at least one) with the changes specified in a JSON object containing at least:
+I takes any amount of filenames (but at least one) with the changes specified in a JSON object. Apart from `author_name`, `author_email` and `description` which aren't mandatory this object needs to contain a property called `adjustments` that will in turn be an array of JSON objects containing at least the following properties:
 
 * `action` - The actual action to perform.
 * `type` - What you are trying to update. It can be either `environment`, `role` or `node`
 * `search` - the search query that will be used to figure out what to update. If a simple string is given (without a `:` character) scribe will assume it's a name and act accordingly 
 * `adjustment` - the hash containing the actual changes
-
-Use of `author_name`, `author_email` and `description` is encouraged to document your adjustments but is not requried at this time.
 
 The action to perform can be one of the following:
 
@@ -100,8 +98,6 @@ The action to perform can be one of the following:
                                 "app" : { "storage_url" : "foo.bar" }
         }
       }
-
-Only one adjustment is expected per a single file.
 
 You can use `adjust` with a `-g` or `--generate` option. It will then fill all the files specified with an adjustment template (overwriting any existing content of the files).
 
