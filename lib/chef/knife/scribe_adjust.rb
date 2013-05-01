@@ -70,6 +70,10 @@ class Chef
       alias_method :action_merge, :merge
       alias_method :action_hash_only_merge, :hash_only_merge
 
+      def changes
+        @changes ||= {}
+      end
+
       def run
         if @name_args[0].nil?
           show_usage
@@ -83,6 +87,7 @@ class Chef
             apply_adjustment(filename)
           end
         end
+        write_adjustments unless config[:generate] == true
       end
 
       def generate_template(filename)
@@ -92,6 +97,12 @@ class Chef
         end
         TEMPLATE_HASH["adjustments"] = [self.class.class_eval(config[:type].upcase + "_ADJUSTMENT_TEMPLATE")]
         File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH)) }
+      end
+
+      def write_adjustments
+        changes.values.each do |change|
+          Chef.const_get(change["adjusted"]["chef_type"].capitalize).json_create(change["adjusted"]).save
+        end
       end
 
       def apply_adjustment(filename)
@@ -105,7 +116,14 @@ class Chef
                 if adjustment_valid? adjustment
                   query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
                   Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
-                    result.class.json_create(send(("action_" + adjustment["action"]).to_sym, result.to_hash, adjustment["adjustment"])).save
+                    result_hash = result.to_hash
+                    key = result_hash["chef_type"] + ":" + result_hash["name"]
+                    if changes.has_key? key
+                      result_hash = changes[key]["adjusted"]
+                    else
+                      changes.store(key, { "original" => result_hash })
+                    end
+                    changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, result_hash, adjustment["adjustment"]))
                   end
                 end
               end

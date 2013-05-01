@@ -61,6 +61,9 @@ describe Chef::Knife::ScribeAdjust do
     describe "when files were given in parameters" do
       before(:each) do
         @scribe.name_args = [ "spec1.json", "spec2.json" ]
+        @scribe.stub(:write_adjustments)
+        @scribe.stub(:generate_template)
+        @scribe.stub(:apply_adjustment)
       end
 
       describe "when generate option has been provided" do
@@ -72,6 +75,12 @@ describe Chef::Knife::ScribeAdjust do
           @scribe.name_args.each { |filename| @scribe.should_receive(:generate_template).with(filename) }
           @scribe.run
         end
+
+        it "doesn't atttempt to writes out adjustments" do
+          @scribe.should_not_receive(:write_adjustments)
+          @scribe.run
+        end
+
       end
 
       describe "when generate option has not been provided" do
@@ -81,6 +90,11 @@ describe Chef::Knife::ScribeAdjust do
 
         it "applies all adjustments specified" do
           @scribe.name_args.each { |filename| @scribe.should_receive(:apply_adjustment).with(filename) }
+          @scribe.run
+        end
+
+        it "writes out all adjustments" do
+          @scribe.should_receive(:write_adjustments)
           @scribe.run
         end
       end
@@ -241,7 +255,37 @@ describe Chef::Knife::ScribeAdjust do
         @scribe.adjustment_valid?(@adjustment_hash).should be_true
       end
     end
+  end
 
+  describe "#write_adjustments" do
+    before(:each) do
+      @adjusted_env = double("adjusted environment")
+      @adjusted_env.stub(:[]).with("chef_type").and_return("environment")
+      @adjusted_node = double("adjusted node")
+      @adjusted_node.stub(:[]).with("chef_type").and_return("node")
+      @scribe.changes["environment:test_env"] = {
+        "original" => { "chef_type" => "environment", "name" => "test_env" },
+        "adjusted" => @adjusted_env
+      }
+      @scribe.changes["node:test_node"] = {
+        "original" => { "chef_type" => "node", "name" => "test_node" },
+        "adjusted" => @adjusted_node
+      }
+      @env_class = double("env class")
+      @node_class = double("node class")
+      @env_object = double("env object")
+      @node_object = double("node_object")
+    end
+
+    it "saves each adjusted version on the chef server" do
+      Chef.should_receive(:const_get).with("Environment").and_return(@env_class)
+      @env_class.should_receive(:json_create).with(@adjusted_env).and_return(@env_object)
+      @env_object.should_receive(:save)
+      Chef.should_receive(:const_get).with("Node").and_return(@node_class)
+      @node_class.should_receive(:json_create).with(@adjusted_node).and_return(@node_object)
+      @node_object.should_receive(:save)
+      @scribe.write_adjustments
+    end
   end
 
   describe "#apply_adjustment" do
@@ -261,7 +305,7 @@ describe Chef::Knife::ScribeAdjust do
                           { "action" => "delete",
                             "type" => "node",
                             "search" => "foo:bar",
-                            "adjustment" => { "a" => 1, "b" => 2 }
+                            "adjustment" => [ "c" ]
                           }
                          ]
       }
@@ -333,6 +377,14 @@ describe Chef::Knife::ScribeAdjust do
             @scribe.stub(:adjustment_valid?).and_return(true)
             @query = double("Chef query")
             Chef::Search::Query.stub(:new).and_return(@query)
+            @chef_obj = double("chef_object")
+            @chef_obj.stub(:to_hash).and_return( { "name" => "test_name", "chef_type" => "test_type", "a" => 3, "c" => 3 } )
+            chef_obj_class = double("chef_object_class")
+            json_create_return_obj = double("final_chef_object")
+            json_create_return_obj.stub(:save)
+            chef_obj_class.stub(:json_create).and_return(json_create_return_obj)
+            @chef_obj.stub(:class).and_return(chef_obj_class)
+            @query.stub(:search).and_yield(@chef_obj)
           end
 
           describe "when search parameter doesn't contain a ':' character" do
@@ -351,17 +403,38 @@ describe Chef::Knife::ScribeAdjust do
             end
           end
 
-          it "applies the adjustment" do
-            chef_obj = double("chef_object")
-            chef_obj.stub(:to_hash).and_return( { "a" => 3, "c" => 3 } )
-            chef_obj_class = double("chef_object_class")
-            json_create_return_obj = double("final_chef_object")
-            json_create_return_obj.stub(:save)
-            chef_obj_class.stub(:json_create).and_return(json_create_return_obj)
-            chef_obj.stub(:class).and_return(chef_obj_class)
-            @query.stub(:search).and_yield(chef_obj)
+          it "checks if the a change to a given object is already pending" do
             @adjustment_hash["adjustments"].each do |adjustment|
-              @scribe.should_receive(("action_" + adjustment["action"]).to_sym).with(chef_obj.to_hash, adjustment["adjustment"])
+              @scribe.changes.should_receive(:has_key?).with(@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"])
+            end
+            @scribe.apply_adjustment(@filename)
+          end
+
+          describe "if the key doesn't exist" do
+            it "saves the original in the changes hash" do
+              @scribe.changes.should_receive(:store).with(@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"],
+                                                          { "original" => @chef_obj.to_hash }
+                                                          ).and_call_original
+              @scribe.apply_adjustment(@filename)
+            end
+          end
+
+          it "applies each subsequent adjustment to the already adjusted version" do
+            first_adjustment_result = double("adjustment result")
+            adjustment1 = @adjustment_hash["adjustments"][0]
+            adjustment2 = @adjustment_hash["adjustments"][1]
+            @scribe.should_receive(("action_" + adjustment1["action"]).to_sym).with(@chef_obj.to_hash, adjustment1["adjustment"]).and_return(first_adjustment_result)
+            @scribe.should_receive(("action_" + adjustment2["action"]).to_sym).with(first_adjustment_result, adjustment2["adjustment"])
+            @scribe.apply_adjustment(@filename)
+          end
+
+          it "saves the changed version in the changes hash" do
+            changes_hash = { "original" => @chef_obj.to_hash, "adjusted" => @chef_obj.to_hash }
+            @scribe.changes[@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"]] = changes_hash
+            adjusted_hash = @chef_obj.to_hash
+            @adjustment_hash["adjustments"].each do |adjustment|
+              adjusted_hash = @scribe.send(("action_" + adjustment["action"]).to_sym, adjusted_hash, adjustment["adjustment"])
+              changes_hash.should_receive(:store).with("adjusted", adjusted_hash).and_call_original
             end
             @scribe.apply_adjustment(@filename)
           end
