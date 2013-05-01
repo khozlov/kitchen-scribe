@@ -84,7 +84,7 @@ class Chef
           if config[:generate] == true
             generate_template(filename)
           else
-            apply_adjustment(filename)
+            parse_adjustment_file(filename)
           end
         end
         write_adjustments unless config[:generate] == true
@@ -99,38 +99,40 @@ class Chef
         File.open(filename, "w") { |file| file.write(JSON.pretty_generate(TEMPLATE_HASH)) }
       end
 
-      def write_adjustments
-        changes.values.each do |change|
-          Chef.const_get(change["adjusted"]["chef_type"].capitalize).json_create(change["adjusted"]).save
-        end
-      end
-
-      def apply_adjustment(filename)
+      def parse_adjustment_file(filename)
         if !File.exists?(filename)
           ui.fatal("File " + filename + " does not exist!")
         else
           begin
             adjustment_file = File.open(filename, "r") { |file| JSON.load(file) }
             if adjustment_file_valid? adjustment_file
-              adjustment_file["adjustments"].each do |adjustment|
-                if adjustment_valid? adjustment
-                  query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
-                  Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
-                    result_hash = result.to_hash
-                    key = result_hash["chef_type"] + ":" + result_hash["name"]
-                    if changes.has_key? key
-                      result_hash = changes[key]["adjusted"]
-                    else
-                      changes.store(key, { "original" => result_hash })
-                    end
-                    changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, result_hash, adjustment["adjustment"]))
-                  end
-                end
-              end
+              adjustment_file["adjustments"].each { |adjustment| apply_adjustment adjustment }
             end
           rescue JSON::ParserError
             ui.fatal("Malformed JSON in " + filename + "!")
           end
+        end
+      end
+
+      def apply_adjustment(adjustment)
+        if adjustment_valid? adjustment
+          query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
+          Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
+            result_hash = result.to_hash
+            key = result_hash["chef_type"] + ":" + result_hash["name"]
+            if changes.has_key? key
+              result_hash = changes[key]["adjusted"]
+            else
+              changes.store(key, { "original" => result_hash })
+            end
+            changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, result_hash, adjustment["adjustment"]))
+          end
+        end
+      end
+
+      def write_adjustments
+        changes.values.each do |change|
+          Chef.const_get(change["adjusted"]["chef_type"].capitalize).json_create(change["adjusted"]).save
         end
       end
 
