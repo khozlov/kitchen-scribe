@@ -25,8 +25,8 @@ class Chef
 
       include Chef::Mixin::ShellOut
 
-      DEFAULT_CHRONICLE_PATH = ".chronicle"
-      DEFAULT_REMOTE_NAME = "origin"
+      DEFAULT_CHRONICLE_PATH = ".chronicle" unless const_defined?(:DEFAULT_CHRONICLE_PATH)
+      DEFAULT_REMOTE_NAME = "origin" unless const_defined?(:DEFAULT_REMOTE_NAME)
 
       banner "knife scribe hire"
 

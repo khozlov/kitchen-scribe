@@ -24,10 +24,10 @@ class Chef
 
       include Chef::Mixin::ShellOut
 
-      DEFAULT_CHRONICLE_PATH = ".chronicle"
-      DEFAULT_REMOTE_NAME = "origin"
-      DEFAULT_BRANCH = "master"
-      DEFAULT_COMMIT_MESSAGE = 'Commiting chef state as of %TIME%'
+      DEFAULT_CHRONICLE_PATH = ".chronicle" unless const_defined?(:DEFAULT_CHRONICLE_PATH)
+      DEFAULT_REMOTE_NAME = "origin" unless const_defined?(:DEFAULT_REMOTE_NAME)
+      DEFAULT_BRANCH = "master" unless const_defined?(:DEFAULT_BRANCH)
+      DEFAULT_COMMIT_MESSAGE = 'Commiting chef state as of %TIME%' unless const_defined?(:DEFAULT_COMMIT_MESSAGE)
 
       banner "knife scribe copy"
 

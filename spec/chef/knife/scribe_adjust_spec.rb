@@ -21,6 +21,7 @@ require File.expand_path('../../../spec_helper', __FILE__)
 describe Chef::Knife::ScribeAdjust do
   before(:each) do
     @scribe = Chef::Knife::ScribeAdjust.new
+    @scribe.stub(:ui).and_return(double("ui", :fatal => nil, :error => nil))
   end
 
   it "responds to #action_merge" do
@@ -40,10 +41,6 @@ describe Chef::Knife::ScribeAdjust do
   end
 
   describe "#run" do
-    before(:each) do
-      @stdout = StringIO.new
-      @scribe.ui.stub!(:stdout).and_return(@stdout)
-    end
 
     describe "when no files were given as parameters" do
       before(:each) do
@@ -64,6 +61,8 @@ describe Chef::Knife::ScribeAdjust do
         @scribe.stub(:write_adjustments)
         @scribe.stub(:generate_template)
         @scribe.stub(:parse_adjustment_file)
+        @scribe.stub(:hire)
+        @scribe.stub(:record_state)
       end
 
       describe "when generate option has been provided" do
@@ -97,6 +96,39 @@ describe Chef::Knife::ScribeAdjust do
           @scribe.should_receive(:write_adjustments)
           @scribe.run
         end
+
+        describe "when document option has been enabled" do
+          before(:each) do
+            @scribe.config[:document] = true
+          end
+
+          it "hires a scribe" do
+            @scribe.should_receive(:hire)
+            @scribe.run
+          end
+
+          it "records the initial and final state of the system" do
+            @scribe.should_receive(:record_state).twice
+            @scribe.run
+          end
+        end
+
+        describe "when document option hasn't' been anabled" do
+          before(:each) do
+            @scribe.config[:document] = false
+          end
+
+          it "doesn't hire a scribe" do
+            @scribe.should_not_receive(:hire)
+            @scribe.run
+          end
+
+          it "doesn't record the initial and final state of the system" do
+            @scribe.should_not_receive(:record_state)
+            @scribe.run
+          end
+        end
+
       end
     end
   end
@@ -150,8 +182,6 @@ describe Chef::Knife::ScribeAdjust do
     describe "when type param is not recognized" do
       before(:each) do
         @scribe.config[:type] = "xxxx"
-        @stdout = StringIO.new
-        @scribe.ui.stub!(:stdout).and_return(@stdout)
       end
 
       it "throws an error through the ui and returns" do
@@ -161,11 +191,80 @@ describe Chef::Knife::ScribeAdjust do
     end
   end
 
+  describe "record_state" do
+    before(:each) do
+      @copyist_config = double("copyist config", :[]= => nil)
+      @copyist = double("copyist", :run => nil, :config => @copyist_config)
+      @scribe.config[:chronicle_path] = "test_path"
+      @scribe.config[:remote_url] = "test_remote_url"
+      @scribe.config[:remote_name] = "test_remote_name"
+      Chef::Knife::ScribeCopy.stub(:new).and_return(@copyist)
+    end
+
+    describe "when called for the first time" do
+      it "creates and runs a new instance of ScribeCopy" do
+        Chef::Knife::ScribeCopy.should_receive(:new).and_return(@copyist)
+        @copyist.should_receive(:run)
+        @scribe.record_state
+      end
+
+      it "passes all relevant config variables to the hired scribe" do
+        [:chronicle_path, :remote_name, :branch].each { |key| @copyist_config.should_receive(:[]=).with(key, @scribe.config[key]) }
+        @scribe.record_state
+      end
+    end
+
+    describe "when not called for the first time" do
+      before(:each) do
+        @scribe.record_state
+      end
+
+      it "creates and runs a new instance of ScribeCopy" do
+        Chef::Knife::ScribeCopy.should_not_receive(:new)
+        @copyist.should_receive(:run)
+        @scribe.record_state
+      end
+
+      it "doesn't reconfigure the copyist" do
+        [:chronicle_path, :remote_name, :branch].each { |key| @copyist_config.should_not_receive(:[]=).with(key, @scribe.config[key]) }
+        @scribe.record_state
+      end
+    end
+
+    it "passes its argument as the message for the scribe" do
+      arg = double("argument")
+      @copyist_config.should_receive(:[]=).with(:message, arg)
+      @scribe.record_state(arg)
+    end
+  end
+
+  describe "hire" do
+    before(:each) do
+      @hired_scribe_config = double("hired scribe config", :[]= => nil)
+      @hired_scribe = double("hired scribe", :run => nil, :config => @hired_scribe_config)
+      @scribe.config[:chronicle_path] = "test_path"
+      @scribe.config[:remote_url] = "test_remote_url"
+      @scribe.config[:remote_name] = "test_remote_name"
+      Chef::Knife::ScribeHire.stub(:new).and_return(@hired_scribe)
+    end
+
+    it "creates and runs a new instance of ScribeHire" do
+      Chef::Knife::ScribeHire.should_receive(:new).and_return(@hired_scribe)
+      @hired_scribe.should_receive(:run)
+      @scribe.hire
+    end
+
+    it "passes all relevant config variables to the hired scribe" do
+      [:chronicle_path, :remote_url, :remote_name].each { |key| @hired_scribe_config.should_receive(:[]=).with(key, @scribe.config[key]) }
+      @scribe.hire
+    end
+  end
+
   describe "#adjustment_file_valid?" do
     describe "when the contants of the file is not a Hash" do
       it "writes an appropriate message through the ui and returns false" do
         [1,[],nil,"test"].each do |not_a_hash|
-          @scribe.ui.should_receive(:fatal).with("Adjustment file must contain a JSON hash!")
+          @scribe.ui.should_receive(:error).with("Adjustment file must contain a JSON hash!")
           @scribe.adjustment_file_valid?(not_a_hash).should be_false
         end
       end
@@ -310,7 +409,6 @@ describe Chef::Knife::ScribeAdjust do
                          ]
       }
       File.stub(:exists?).and_return(true)
-      @scribe.ui.stub(:fatal)
       @scribe.stub(:apply_adjustment)
     end
 
@@ -325,7 +423,7 @@ describe Chef::Knife::ScribeAdjust do
       end
 
       it "returns writes a fatal error through the ui" do
-        @scribe.ui.should_receive(:fatal).with("File " + @filename + " does not exist!")
+        @scribe.ui.should_receive(:error).with(@filename + ": File does not exist!")
         @scribe.parse_adjustment_file(@filename)
       end
 
@@ -343,7 +441,7 @@ describe Chef::Knife::ScribeAdjust do
 
     describe "when the JSON file is malformed" do
       it "returns writes a fatal error through the ui" do
-        @scribe.ui.should_receive(:fatal).with("Malformed JSON in " + @filename + "!")
+        @scribe.ui.should_receive(:error).with(@filename + ": Malformed JSON!")
         @scribe.parse_adjustment_file(@filename)
       end
 
@@ -381,7 +479,6 @@ describe Chef::Knife::ScribeAdjust do
         "search" => "test",
         "adjustment" => { "a" => 1, "b" => 2 }
       }
-      @scribe.ui.stub(:fatal)
     end
 
     it "checks if the adjustment is valid" do

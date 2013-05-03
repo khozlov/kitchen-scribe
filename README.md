@@ -103,6 +103,7 @@ You can use `adjust` with a `-g` or `--generate` option. It will then fill all t
 
 An additional option `-t` or `--type` allows you to decide what adjustment template should be used (possible variants are `environment`, `role` and `node` - `environment` being the default)
 
+**Important note:** When you're trying to apply a change to all your environemnts, don't use `*:*` as your search term. Chef will then try to apply those changes to the `_default` environemnt which is frozen and can't me modified. Try using `-name:_default` instead. 
 
 Have fun!
 

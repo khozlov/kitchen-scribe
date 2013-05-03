@@ -24,6 +24,11 @@ class Chef
 
       include Chef::Mixin::DeepMerge
 
+      deps do
+        require_relative 'scribe_hire'
+        require_relative 'scribe_copy'
+      end
+
       TEMPLATE_HASH = { "author_name" => "",
         "author_email" => "",
         "description" => "",
@@ -52,14 +57,16 @@ class Chef
 
       banner "knife scribe adjust FILE [FILE..]"
 
-      deps do
-
-      end
-
       option :generate,
       :short => "-g",
       :long  => "--generate",
       :description => "generate adjustment templates"
+
+      option :document,
+      :short => "-d",
+      :long  => "--document",
+      :description => "document with copy copy"
+
 
       option :type,
       :short => "-t TYPE",
@@ -67,12 +74,45 @@ class Chef
       :description => "generate adjustment templates [environemnt|node|role]",
       :default => "environment"
 
+
+      option :chronicle_path,
+      :short => "-p PATH",
+      :long => "--chronicle-path PATH",
+      :description => "Path to the directory where the chronicle should be located",
+      :default => nil
+
+      option :remote_name,
+      :long => "--remote-name REMOTE_NAME",
+      :description => "Name of the remote chronicle repository",
+      :default => nil
+
+      option :remote_url,
+      :short => "-r REMOTE_URL",
+      :long => "--remote-url REMOTE_URL",
+      :description => "Url of the remote chronicle repository",
+      :default => nil
+
+      option :branch,
+      :long => "--branch BRANCH_NAME",
+      :description => "Name of the branch you want to use",
+      :default => nil
+
+
       alias_method :action_merge, :merge
       alias_method :action_hash_only_merge, :hash_only_merge
 
       def changes
         @changes ||= {}
       end
+
+      def descriptions
+        @descriptions ||= []
+      end
+
+      def errors
+        @errors ||= []
+      end
+
 
       def run
         if @name_args[0].nil?
@@ -87,7 +127,14 @@ class Chef
             parse_adjustment_file(filename)
           end
         end
-        write_adjustments unless config[:generate] == true
+        unless config[:generate] == true
+          if config[:document] == true
+            hire
+            record_state
+          end
+          write_adjustments
+          record_state if config[:document] == true
+        end
       end
 
       def generate_template(filename)
@@ -101,7 +148,7 @@ class Chef
 
       def parse_adjustment_file(filename)
         if !File.exists?(filename)
-          ui.fatal("File " + filename + " does not exist!")
+          ui.error(filename + ": File does not exist!")
         else
           begin
             adjustment_file = File.open(filename, "r") { |file| JSON.load(file) }
@@ -109,7 +156,7 @@ class Chef
               adjustment_file["adjustments"].each { |adjustment| apply_adjustment adjustment }
             end
           rescue JSON::ParserError
-            ui.fatal("Malformed JSON in " + filename + "!")
+            ui.error(filename + ": Malformed JSON!")
           end
         end
       end
@@ -138,7 +185,7 @@ class Chef
 
       def adjustment_file_valid? adjustment_file
         unless adjustment_file.kind_of?(Hash)
-          ui.fatal("Adjustment file must contain a JSON hash!")
+          ui.error("Adjustment file must contain a JSON hash!")
           return false
         end
 
@@ -167,6 +214,21 @@ class Chef
           return false
         end
         true
+      end
+
+      def hire
+        hired_scribe = Chef::Knife::ScribeHire.new
+        [:chronicle_path, :remote_url, :remote_name].each { |key| hired_scribe.config[key] = config[key] }
+        hired_scribe.run
+      end
+
+      def record_state(message = nil)
+        if @copyist.nil?
+          @copyist = Chef::Knife::ScribeCopy.new
+          [:chronicle_path, :remote_name, :branch].each { |key| @copyist.config[key] = config[key] }
+        end
+        @copyist.config[:message] = message
+        @copyist.run
       end
 
       def action_overwrite(base, overwrite_with)
