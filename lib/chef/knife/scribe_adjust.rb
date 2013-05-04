@@ -129,6 +129,10 @@ class Chef
           end
         end
         unless config[:generate] == true
+          if errors?
+            print_errors
+            exit 1
+          end
           if config[:document] == true
             hire
             record_state
@@ -160,7 +164,7 @@ class Chef
             end
             if adjustment_file["adjustments"].length > errors.last["adjustments"].length
               description = adjustment_file["description"]
-              description += "[with errors]" if errors.last["adjustments"].keys.length > 0
+              description += "[with errors]" if errors.last["adjustments"].size > 0
               descriptions.push(description)
             end
           rescue JSON::ParserError
@@ -235,6 +239,20 @@ class Chef
         end
         @copyist.config[:message] = message
         @copyist.run
+      end
+
+      def errors?
+        errors.each { |err| return true if !err["general"].nil? || (err["adjustments"].size > 0) }
+        false
+      end
+
+      def print_errors
+        ui.error("ERRORS OCCURED:")
+        errors.each do |err|
+          ui.error(err["name"]) if !err["general"].nil? || (err["adjustments"].size > 0)
+          ui.error("\t" + err["general"]) if !err["general"].nil?
+          err["adjustments"].each { |num, adj_err| ui.error("\t[Adjustment #{num}]: #{adj_err}") }
+        end
       end
 
       def action_overwrite(base, overwrite_with)

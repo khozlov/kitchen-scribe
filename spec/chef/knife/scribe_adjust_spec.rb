@@ -97,45 +97,72 @@ describe Chef::Knife::ScribeAdjust do
           @scribe.run
         end
 
-        it "writes out all adjustments" do
-          @scribe.should_receive(:write_adjustments)
-          @scribe.run
-        end
-
-        describe "when document option has been enabled" do
+        describe "when no errors occured" do
           before(:each) do
-            @scribe.config[:document] = true
-            @scribe.descriptions.push("Foo").push("Bar")
+            @scribe.stub(:errors?).and_return(false)
           end
 
-          it "hires a scribe" do
-            @scribe.should_receive(:hire)
+          it "doesn't print errors" do
+            @scribe.should_not_receive(:print_errors)
             @scribe.run
           end
 
-          it "records the initial and final state of the system" do
-            @scribe.should_receive(:record_state).with(no_args()).ordered
-            @scribe.should_receive(:record_state).with("Foo\nBar").ordered
+
+          it "writes out all adjustments" do
+            @scribe.should_receive(:write_adjustments)
             @scribe.run
+          end
+
+          describe "when document option has been enabled" do
+            before(:each) do
+              @scribe.config[:document] = true
+              @scribe.descriptions.push("Foo").push("Bar")
+            end
+
+            it "hires a scribe" do
+              @scribe.should_receive(:hire)
+              @scribe.run
+            end
+
+            it "records the initial and final state of the system" do
+              @scribe.should_receive(:record_state).with(no_args()).ordered
+              @scribe.should_receive(:record_state).with("Foo\nBar").ordered
+              @scribe.run
+            end
+          end
+
+          describe "when document option hasn't' been anabled" do
+            before(:each) do
+              @scribe.config[:document] = false
+            end
+
+            it "doesn't hire a scribe" do
+              @scribe.should_not_receive(:hire)
+              @scribe.run
+            end
+
+            it "doesn't record the initial and final state of the system" do
+              @scribe.should_not_receive(:record_state)
+              @scribe.run
+            end
           end
         end
 
-        describe "when document option hasn't' been anabled" do
+        describe "when errors occured" do
           before(:each) do
-            @scribe.config[:document] = false
+            @scribe.stub(:errors?).and_return(true)
           end
 
-          it "doesn't hire a scribe" do
-            @scribe.should_not_receive(:hire)
-            @scribe.run
+          it "doesn't write out any adjustments" do
+            @scribe.should_not_receive(:write_adjustments)
+            lambda { @scribe.run }.should raise_error(SystemExit)
           end
 
-          it "doesn't record the initial and final state of the system" do
-            @scribe.should_not_receive(:record_state)
-            @scribe.run
+          it "prints errors" do
+            @scribe.should_receive(:print_errors)
+            lambda { @scribe.run }.should raise_error(SystemExit)
           end
         end
-
       end
     end
   end
@@ -736,4 +763,59 @@ describe Chef::Knife::ScribeAdjust do
       result.should eq(overwrite_with)
     end
   end
+
+  describe "#errors?" do
+    describe "when no errors have occured" do
+      before(:each) do
+        for i in 1..3
+          @scribe.errors.push({"name" => "filename" + i.to_s, "general" => nil, "adjustments" => {}})
+        end
+      end
+
+      it "returns false" do
+        @scribe.errors?.should be_false
+      end
+    end
+
+    describe "when general error has occured" do
+      before(:each) do
+        for i in 1..3
+          @scribe.errors.push({"name" => "filename" + i.to_s, "general" => nil, "adjustments" => {}})
+        end
+        @scribe.errors.push({"name" => "filename4", "general" => "foo", "adjustments" => {}})
+      end
+
+      it "returns true" do
+        @scribe.errors?.should be_true
+      end
+    end
+
+    describe "when an adjustment specific error has occured" do
+      before(:each) do
+        @scribe.errors.push({"name" => "filename0", "general" => nil, "adjustments" => { 2 => "bar"}})
+        for i in 1..3
+          @scribe.errors.push({"name" => "filename" + i.to_s, "general" => nil, "adjustments" => {}})
+        end
+      end
+
+      it "returns true" do
+        @scribe.errors?.should be_true
+      end
+    end
+  end
+
+  describe "print_errors" do
+    it "prints all the errors in the right format" do
+      @scribe.errors.push({"name" => "filename1", "general" => nil, "adjustments" => {}})
+      @scribe.errors.push({"name" => "filename2", "general" => nil, "adjustments" => { 2 => "bar"}})
+      @scribe.errors.push({"name" => "filename3", "general" => "Foo", "adjustments" => {}})
+      @scribe.ui.should_receive(:error).with("ERRORS OCCURED:")
+      @scribe.ui.should_receive(:error).with("filename2")
+      @scribe.ui.should_receive(:error).with("\t[Adjustment 2]: bar")
+      @scribe.ui.should_receive(:error).with("filename3")
+      @scribe.ui.should_receive(:error).with("\tFoo")
+      @scribe.print_errors
+    end
+  end
+
 end
