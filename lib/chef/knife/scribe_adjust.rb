@@ -124,6 +124,7 @@ class Chef
           if config[:generate] == true
             generate_template(filename)
           else
+            errors.push({ "name" => filename, "general" => nil, "adjustments" => {} })
             parse_adjustment_file(filename)
           end
         end
@@ -133,7 +134,7 @@ class Chef
             record_state
           end
           write_adjustments
-          record_state if config[:document] == true
+          record_state(descriptions.join("\n")) if config[:document] == true
         end
       end
 
@@ -148,32 +149,37 @@ class Chef
 
       def parse_adjustment_file(filename)
         if !File.exists?(filename)
-          ui.error(filename + ": File does not exist!")
+          errors.last["general"] = "File does not exist!"
         else
           begin
             adjustment_file = File.open(filename, "r") { |file| JSON.load(file) }
             if adjustment_file_valid? adjustment_file
-              adjustment_file["adjustments"].each { |adjustment| apply_adjustment adjustment }
+              adjustment_file["adjustments"].each_with_index do |adjustment, index|
+                apply_adjustment(adjustment) if adjustment_valid?(adjustment, index)
+              end
+            end
+            if adjustment_file["adjustments"].length > errors.last["adjustments"].length
+              description = adjustment_file["description"]
+              description += "[with errors]" if errors.last["adjustments"].keys.length > 0
+              descriptions.push(description)
             end
           rescue JSON::ParserError
-            ui.error(filename + ": Malformed JSON!")
+            errors.last["general"] = "Malformed JSON!"
           end
         end
       end
 
       def apply_adjustment(adjustment)
-        if adjustment_valid? adjustment
-          query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
-          Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
-            result_hash = result.to_hash
-            key = result_hash["chef_type"] + ":" + result_hash["name"]
-            if changes.has_key? key
-              result_hash = changes[key]["adjusted"]
-            else
-              changes.store(key, { "original" => result_hash })
-            end
-            changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, result_hash, adjustment["adjustment"]))
+        query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
+        Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
+          result_hash = result.to_hash
+          key = result_hash["chef_type"] + ":" + result_hash["name"]
+          if changes.has_key? key
+            result_hash = changes[key]["adjusted"]
+          else
+            changes.store(key, { "original" => result_hash })
           end
+          changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, result_hash, adjustment["adjustment"]))
         end
       end
 
@@ -185,32 +191,32 @@ class Chef
 
       def adjustment_file_valid? adjustment_file
         unless adjustment_file.kind_of?(Hash)
-          ui.error("Adjustment file must contain a JSON hash!")
+          errors.last["general"] = "Adjustment file must contain a JSON hash!"
           return false
         end
 
         unless adjustment_file["adjustments"].kind_of?(Array)
-          ui.fatal("Adjustment file must contain an array of adjustments!")
+          errors.last["general"] = "Adjustment file must contain an array of adjustments!"
           return false
         end
         true
       end
 
-      def adjustment_valid? adjustment
+      def adjustment_valid?(adjustment, index)
         unless adjustment.kind_of?(Hash)
-          ui.fatal("Adjustment must be a JSON hash!")
+          errors.last["adjustments"].store(index,"Adjustment must be a JSON hash!")
           return false
         end
 
         ["action", "type", "search", "adjustment"].each do |required_key|
           unless adjustment.has_key?(required_key)
-            ui.fatal("Adjustment hash must contain " + required_key + "!")
+            errors.last["adjustments"].store(index, "Adjustment hash must contain " + required_key + "!")
             return false
           end
         end
 
         unless respond_to?("action_" + adjustment["action"])
-          ui.fatal("Incorrect action!")
+          errors.last["adjustments"].store(index, "Incorrect action!")
           return false
         end
         true
