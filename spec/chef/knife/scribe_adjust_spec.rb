@@ -58,11 +58,8 @@ describe Chef::Knife::ScribeAdjust do
     describe "when files were given in parameters" do
       before(:each) do
         @scribe.name_args = [ "spec1.json", "spec2.json" ]
-        @scribe.stub(:write_adjustments)
         @scribe.stub(:generate_template)
-        @scribe.stub(:parse_adjustment_file)
-        @scribe.stub(:hire)
-        @scribe.stub(:record_state)
+        @scribe.stub(:parse_adjustments)
       end
 
       describe "when generate option has been provided" do
@@ -75,96 +72,148 @@ describe Chef::Knife::ScribeAdjust do
           @scribe.run
         end
 
-        it "doesn't atttempt to writes out adjustments" do
-          @scribe.should_not_receive(:write_adjustments)
+        it "doesn't call #parse_adjustments" do
+          @scribe.should_not_receive(:parse_adjustments)
           @scribe.run
         end
-
       end
 
-      describe "when generate option has not been provided" do
+      describe "when generate option hasn't been provided" do
         before(:each) do
-          @scribe.config[:generate] = nil
+          @scribe.config[:generate] = false
         end
 
-        it "initializes error structure for each file" do
-          @scribe.name_args.each { |filename| @scribe.errors.should_receive(:push).with({"name" => filename, "general" => nil, "adjustments" => {}}) }
+        it "doesn't generates adjustment templates for each filename specified" do
+          @scribe.should_not_receive(:generate_template)
           @scribe.run
         end
 
-        it "parses all adjustments specified" do
-          @scribe.name_args.each { |filename| @scribe.should_receive(:parse_adjustment_file).with(filename) }
+        it "calls #parse_adjustments method" do
+          @scribe.should_receive(:parse_adjustments)
           @scribe.run
-        end
-
-        describe "when no errors occured" do
-          before(:each) do
-            @scribe.stub(:errors?).and_return(false)
-          end
-
-          it "doesn't print errors" do
-            @scribe.should_not_receive(:print_errors)
-            @scribe.run
-          end
-
-
-          it "writes out all adjustments" do
-            @scribe.should_receive(:write_adjustments)
-            @scribe.run
-          end
-
-          describe "when document option has been enabled" do
-            before(:each) do
-              @scribe.config[:document] = true
-              @scribe.descriptions.push("Foo").push("Bar")
-            end
-
-            it "hires a scribe" do
-              @scribe.should_receive(:hire)
-              @scribe.run
-            end
-
-            it "records the initial and final state of the system" do
-              @scribe.should_receive(:record_state).with(no_args()).ordered
-              @scribe.should_receive(:record_state).with("Foo\nBar").ordered
-              @scribe.run
-            end
-          end
-
-          describe "when document option hasn't' been anabled" do
-            before(:each) do
-              @scribe.config[:document] = false
-            end
-
-            it "doesn't hire a scribe" do
-              @scribe.should_not_receive(:hire)
-              @scribe.run
-            end
-
-            it "doesn't record the initial and final state of the system" do
-              @scribe.should_not_receive(:record_state)
-              @scribe.run
-            end
-          end
-        end
-
-        describe "when errors occured" do
-          before(:each) do
-            @scribe.stub(:errors?).and_return(true)
-          end
-
-          it "doesn't write out any adjustments" do
-            @scribe.should_not_receive(:write_adjustments)
-            lambda { @scribe.run }.should raise_error(SystemExit)
-          end
-
-          it "prints errors" do
-            @scribe.should_receive(:print_errors)
-            lambda { @scribe.run }.should raise_error(SystemExit)
-          end
         end
       end
     end
+  end
+
+  describe "#parse_adjustments" do
+    before(:each) do
+      @scribe.stub(:write_adjustments)
+      @scribe.stub(:parse_adjustment_file)
+      @scribe.stub(:hire)
+      @scribe.stub(:record_state)
+      @scribe.stub(:diff)
+    end
+
+    it "initializes error structure for each file" do
+      @scribe.name_args.each { |filename| @scribe.errors.should_receive(:push).with({"name" => filename, "general" => nil, "adjustments" => {}}) }
+      @scribe.parse_adjustments
+    end
+
+    it "parses all adjustments specified" do
+      @scribe.name_args.each { |filename| @scribe.should_receive(:parse_adjustment_file).with(filename) }
+      @scribe.parse_adjustments
+    end
+
+    describe "when dryrun option has been provided" do
+      before(:each) do
+        @scribe.config[:dryrun] = true
+      end
+
+      it "prints a diff of all adjustments" do
+        @scribe.should_receive(:diff)
+        @scribe.parse_adjustments
+      end
+
+      it "doesn't atttempt to writes out adjustments" do
+        @scribe.should_not_receive(:write_adjustments)
+        @scribe.parse_adjustments
+      end
+
+      describe "when errors occured" do
+        before(:each) do
+          @scribe.stub(:errors?).and_return(true)
+        end
+
+        it "prints errors but does not exit" do
+          @scribe.should_receive(:print_errors)
+          lambda { @scribe.parse_adjustments }.should_not raise_error(SystemExit)
+        end
+      end
+    end
+
+    describe "when dryrun option hasn't been provided" do
+      before(:each) do
+        @scribe.config[:dryrun] = false
+      end
+
+      describe "when no errors occured" do
+        before(:each) do
+            @scribe.stub(:errors?).and_return(false)
+        end
+
+        it "doesn't print errors" do
+          @scribe.should_not_receive(:print_errors)
+          @scribe.parse_adjustments
+        end
+
+        it "writes out all adjustments" do
+          @scribe.should_receive(:write_adjustments)
+          @scribe.parse_adjustments
+        end
+
+        describe "when document option has been enabled" do
+          before(:each) do
+            @scribe.config[:document] = true
+            @scribe.descriptions.push("Foo").push("Bar")
+          end
+
+          it "hires a scribe" do
+            @scribe.should_receive(:hire)
+            @scribe.parse_adjustments
+          end
+
+          it "records the initial and final state of the system" do
+            @scribe.should_receive(:record_state).with(no_args()).ordered
+            @scribe.should_receive(:record_state).with("Foo\nBar").ordered
+            @scribe.parse_adjustments
+          end
+        end
+
+        describe "when document option hasn't been enabled" do
+          before(:each) do
+            @scribe.config[:document] = false
+          end
+
+          it "doesn't hire a scribe" do
+            @scribe.should_not_receive(:hire)
+            @scribe.parse_adjustments
+          end
+
+          it "doesn't record the initial and final state of the system" do
+            @scribe.should_not_receive(:record_state)
+            @scribe.parse_adjustments
+          end
+        end
+      end
+
+      describe "when errors occured" do
+        before(:each) do
+          @scribe.stub(:errors?).and_return(true)
+        end
+
+        it "doesn't write out any adjustments" do
+          @scribe.should_not_receive(:write_adjustments)
+          lambda { @scribe.parse_adjustments }.should raise_error(SystemExit)
+        end
+
+        it "prints errors" do
+          @scribe.should_receive(:print_errors)
+          lambda { @scribe.parse_adjustments }.should raise_error(SystemExit)
+        end
+      end
+    end
+
   end
 
   describe "#generate_template" do
@@ -804,7 +853,7 @@ describe Chef::Knife::ScribeAdjust do
     end
   end
 
-  describe "print_errors" do
+  describe "#print_errors" do
     it "prints all the errors in the right format" do
       @scribe.errors.push({"name" => "filename1", "general" => nil, "adjustments" => {}})
       @scribe.errors.push({"name" => "filename2", "general" => nil, "adjustments" => { 2 => "bar"}})
@@ -815,6 +864,52 @@ describe Chef::Knife::ScribeAdjust do
       @scribe.ui.should_receive(:error).with("filename3")
       @scribe.ui.should_receive(:error).with("\tFoo")
       @scribe.print_errors
+    end
+  end
+
+  describe "#diff" do
+    before(:each) do
+      @scribe.changes["environment:test_env"] = {
+        "original" => { "chef_type" => "environment", "name" => "test_env", "default_attributes" => { "foo" => "bar" }},
+        "adjusted" => { "chef_type" => "environment", "name" => "test_env", "default_attributes" => {}}
+      }
+      @scribe.changes["node:test_node"] = {
+        "original" => { "chef_type" => "node", "name" => "test_node" , "attributes" => { "foo" => "bar" }},
+        "adjusted" => { "chef_type" => "node", "name" => "test_node" , "attributes" => { "foo" => "bar2" }}
+      }
+      @original_file = double("original file", :write => nil, :close => nil, :unlink => nil, :path => "original_path", :rewind => nil)
+      @adjusted_file = double("adjusted file", :write => nil, :close => nil, :unlink => nil, :path => "adjusted_path", :rewind => nil)
+      @scribe.ui.stub(:info)
+      @scribe.stub(:shell_out).and_return(double("command", :stdout => "aaa"))
+    end
+
+    it "creates and then deletes two temp files" do
+      Tempfile.should_receive(:new).with("original").and_return(@original_file)
+      Tempfile.should_receive(:new).with("adjusted").and_return(@adjusted_file)
+      @original_file.should_receive(:close)
+      @original_file.should_receive(:unlink)
+      @adjusted_file.should_receive(:close)
+      @adjusted_file.should_receive(:unlink)
+      @scribe.diff
+    end
+
+    describe "for each changed object" do
+      it "saves both original and adjusted hashes to the tempfiles" do
+        Tempfile.stub(:new).with("original").and_return(@original_file)
+        Tempfile.stub(:new).with("adjusted").and_return(@adjusted_file)
+        @scribe.changes.values.each do |change|
+          @original_file.should_receive(:write).with(JSON.pretty_generate(change["original"]))
+          @adjusted_file.should_receive(:write).with(JSON.pretty_generate(change["adjusted"]))
+        end
+        @scribe.diff
+      end
+
+      it "runs a diff on both files" do
+        @scribe.ui.should_receive(:info).with("[environment:test_env]")
+        @scribe.ui.should_receive(:info).with("aaa").twice
+        @scribe.ui.should_receive(:info).with("[node:test_node]")
+        @scribe.diff
+      end
     end
   end
 

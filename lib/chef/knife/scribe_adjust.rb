@@ -17,12 +17,14 @@
 #
 
 require 'chef/mixin/deep_merge'
+require 'chef/mixin/shell_out'
 
 class Chef
   class Knife
     class ScribeAdjust < Chef::Knife
 
       include Chef::Mixin::DeepMerge
+      include Chef::Mixin::ShellOut
 
       deps do
         require_relative 'scribe_hire'
@@ -66,6 +68,10 @@ class Chef
       :short => "-d",
       :long  => "--document",
       :description => "document with copy copy"
+
+      option :dryrun,
+      :long  => "--dryrun",
+      :description => "do a test run"
 
 
       option :type,
@@ -120,19 +126,29 @@ class Chef
           ui.fatal("At least one adjustment file needs to be specified!")
           exit 1
         end
-        @name_args.each do |filename|
-          if config[:generate] == true
-            generate_template(filename)
-          else
-            errors.push({ "name" => filename, "general" => nil, "adjustments" => {} })
-            parse_adjustment_file(filename)
-          end
+        if config[:generate] == true
+          @name_args.each { |filename| generate_template(filename) }
+        else
+          parse_adjustments
         end
-        unless config[:generate] == true
-          if errors?
-            print_errors
-            exit 1
-          end
+      end
+
+      def generate_templates
+
+      end
+
+      def parse_adjustments
+        @name_args.each do |filename|
+          errors.push({ "name" => filename, "general" => nil, "adjustments" => {} })
+          parse_adjustment_file(filename)
+        end
+        if errors?
+          print_errors
+          exit 1 unless config[:dryrun]
+        end
+        if config[:dryrun]
+          diff
+        else
           if config[:document] == true
             hire
             record_state
@@ -283,6 +299,27 @@ class Chef
         end
       end
       delete_from
+    end
+
+    def diff
+      original_file = Tempfile.new("original")
+      adjusted_file = Tempfile.new("adjusted")
+      begin
+        changes.each do |key, change|
+          ui.info("[#{key}]")
+          original_file.write(JSON.pretty_generate(change["original"]))
+          adjusted_file.write(JSON.pretty_generate(change["adjusted"]))
+          original_file.rewind
+          adjusted_file.rewind
+          diff_output = shell_out("diff -L original -L adjusted -u #{original_file.path} #{adjusted_file.path}")
+          ui.info(diff_output.stdout)
+        end
+      ensure
+        original_file.close
+        original_file.unlink
+        adjusted_file.close
+        adjusted_file.unlink
+      end
     end
   end
 end
