@@ -10,7 +10,7 @@ It performs two main functions.
 
 1.  _Documenting changes_. It pulls the configuration of all your environements, roles, and nodes then saves them into json files in the place of your choosing and commits the changes to a local git repository. It can also pull/push them to a remote repostory for safekeeping.
 
-2.  _Making precise changes_. It can perform precise updates on your environments, roles and nodes by using json data structure describing the change.
+2.  _Making precise changes_. It can perform precise updates on your environments, roles and nodes by using json data structure describing the change. *[This feature is still being tested and it's not available through rubygems yet. If you would like to try it please install it driectly from the github repo]* 
 
 The philosophy behind using scribe to update your environments, roles an nodes is that you may want to make prepare some changes in advance, be able to test them and then have them applied to the final setup. Also it might be important to isolate those changes in a clear way so people who are not familiar with chef don't have to edit a huge json object to get them in. Lastly you can now automate your applying your changes as well, and automation is what this thing is all about in the end. 
 
@@ -103,15 +103,19 @@ You can use `adjust` with a `-g` or `--generate` option. It will then fill all t
 
 An additional option `-t` or `--type` allows you to decide what adjustment template should be used (possible variants are `environment`, `role` and `node` - `environment` being the default)
 
+Runing `adjust` with a `--dryrun` option won't update any objects on the server, but will allow you to review the result of your adjustments in a diff format.
+
+Lastly you can use the `-d` or `--document` option which will surround your adjustments with a `scribe copy` action (initializing the repo with `scribe hire` just in case). It will use the same configuration form your `knife.rb` file that a standalone call to `hire` or `copy` would. You can also use the same command line prameters (`--chronicle-path`, `--remote-name`, `--remote-url` and `--branch`) to set everything up.
+
 **Important note:** When you're trying to apply a change to all your environemnts, don't use `*:*` as your search term. Chef will then try to apply those changes to the `_default` environemnt which is frozen and can't me modified. Try using `-name:_default` instead. 
 
 Have fun!
 
-WHAT'S THE PLAN?
-----------------
-* Integration with scribe copy to record the changes as they occur
-* Reviewing changes via diff
-* All-or-nothing adjustments
+WHAT'S NEXT
+-----------
+* Refactoring, refactoring, refactoring
+* Testing
+* Bug fixes
 
 LICENSE
 -------
