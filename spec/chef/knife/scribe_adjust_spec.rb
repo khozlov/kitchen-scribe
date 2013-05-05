@@ -165,7 +165,7 @@ describe Chef::Knife::ScribeAdjust do
         describe "when document option has been enabled" do
           before(:each) do
             @scribe.config[:document] = true
-            @scribe.descriptions.push("Foo").push("Bar")
+            @scribe.descriptions.push("Foo").push("Bar\t\n")
           end
 
           it "hires a scribe" do
@@ -173,7 +173,7 @@ describe Chef::Knife::ScribeAdjust do
             @scribe.parse_adjustments
           end
 
-          it "records the initial and final state of the system" do
+          it "records the initial and final state of the system with a striped description" do
             @scribe.should_receive(:record_state).with(no_args()).ordered
             @scribe.should_receive(:record_state).with("Foo\nBar").ordered
             @scribe.parse_adjustments

@@ -154,7 +154,7 @@ class Chef
             record_state
           end
           write_adjustments
-          record_state(descriptions.join("\n")) if config[:document] == true
+          record_state(descriptions.join("\n").strip) if config[:document] == true
         end
       end
 
