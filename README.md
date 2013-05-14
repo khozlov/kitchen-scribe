@@ -12,11 +12,12 @@ It performs two main functions.
 
 2.  _Making precise changes_. It can perform precise updates on your environments, roles and nodes by using json data structure describing the change. *[This feature is still being tested and it's not available through rubygems yet. If you would like to try it please install it driectly from the github repo]* 
 
-The philosophy behind using scribe to update your environments, roles an nodes is that you may want to make prepare some changes in advance, be able to test them and then have them applied to the final setup. Also it might be important to isolate those changes in a clear way so people who are not familiar with chef don't have to edit a huge json object to get them in. Lastly you can now automate your applying your changes as well, and automation is what this thing is all about in the end. 
+The philosophy behind using scribe to update your environments, roles an nodes is that you may want to make prepare some changes in advance, be able to test them and then have them applied to the final setup. Also it might be important to isolate those changes in a clear way so people who are not familiar with chef don't have to edit a huge json object to get them in. Lastly you can now automate applying your changes as well, and automation is what Chef is all about in the end:). 
 
-The plugin is in an early alpha (as indicated by the commit dates) so things may change rather drastically in the near future. The _documenting changes_ feature should be pretty stable, but the _making changes_ is in active development and may **NOT HAVE BEEN FULLY TESTED** so please submit any bugs you find through the github issue system.
+The plugin is still in the beta stage, I've tested it manualy to some extent, but I'm sure there are things I missed. Please submit any bugs you find through the github issue system and I promiss to take care of them as soon as possible.
 
 [![Code Climate](https://codeclimate.com/github/khozlov/kitchen-scribe.png)](https://codeclimate.com/github/khozlov/kitchen-scribe)
+[![Gem Version](https://badge.fury.io/rb/kitchen-scribe.png)](http://badge.fury.io/rb/kitchen-scribe)
 
 USAGE
 -----
@@ -63,7 +64,7 @@ I takes any amount of filenames (but at least one) with the changes specified in
 The action to perform can be one of the following:
 
 *   `merge` - a deep merge that combines the chef object with the adjustment, adding new entries and updating values. Arrays will be combined.
-*   `hash_only_merge` - same as merge but arrays will be overwritten instead of combined.
+*   `hash_only_merge` - same as merge but arrays will be overwritten instead of combined (only in Chef version 11.0+).
 *   `overwrite` - a simple merge on the top level of the chef object. Usefull for overwriting run lists.
 *   `delete` - as the name suggests it can be used to delete parts of the config. The adjustment may be an integer or string in which case scribe will attempt to remove this key from the objec at the top level. It can be hash, which scribe treats as a map to the key that needs to be removed. Finally It can be an array which represents a set of changes that needs to be done on a single level. A quick example:
 

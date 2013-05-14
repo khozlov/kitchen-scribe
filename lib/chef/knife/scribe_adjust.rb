@@ -105,7 +105,7 @@ class Chef
 
 
       alias_method :action_merge, :merge
-      alias_method :action_hash_only_merge, :hash_only_merge
+      alias_method :action_hash_only_merge, :hash_only_merge if respond_to?(:hash_only_merge)
 
       def changes
         @changes ||= {}
