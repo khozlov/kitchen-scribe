@@ -10,7 +10,8 @@ It performs two main functions.
 
 1.  _Documenting changes_. It pulls the configuration of all your environements, roles, and nodes then saves them into json files in the place of your choosing and commits the changes to a local git repository. It can also pull/push them to a remote repostory for safekeeping.
 
-2.  _Making precise changes_. It can perform precise updates on your environments, roles and nodes by using json data structure describing the change. *[This feature is still being tested and it's not available through rubygems yet. If you would like to try it please install it driectly from the github repo]* 
+2.  _Making precise changes_. It can perform precise updates on your environments, roles and nodes by using json data structure describing the change.
+
 
 The philosophy behind using scribe to update your environments, roles an nodes is that you may want to make prepare some changes in advance, be able to test them and then have them applied to the final setup. Also it might be important to isolate those changes in a clear way so people who are not familiar with chef don't have to edit a huge json object to get them in. Lastly you can now automate applying your changes as well, and automation is what Chef is all about in the end:). 
 
