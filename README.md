@@ -13,7 +13,7 @@ It performs two main functions.
 2.  _Making precise changes_. It can perform precise updates on your environments, roles and nodes by using json data structure describing the change.
 
 
-The philosophy behind using scribe to update your environments, roles an nodes is that you may want to make prepare some changes in advance, be able to test them and then have them applied to the final setup. Also it might be important to isolate those changes in a clear way so people who are not familiar with chef don't have to edit a huge json object to get them in. Lastly you can now automate applying your changes as well, and automation is what Chef is all about in the end:). 
+The philosophy behind using scribe to update your environments, roles an nodes is that you may want to prepare some changes in advance, be able to test them and then have them applied to the final setup. Also it might be important to isolate those changes in a clear way so people who are not familiar with chef don't have to edit a huge json object to get them in. Lastly, you can now automate applying your changes as well, and automation is what Chef is all about in the end:). 
 
 The plugin is still in the beta stage, I've tested it manualy to some extent, but I'm sure there are things I missed. Please submit any bugs you find through the github issue system and I promiss to take care of them as soon as possible.
 
