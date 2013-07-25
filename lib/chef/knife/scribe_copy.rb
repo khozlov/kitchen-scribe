@@ -132,7 +132,7 @@ class Chef
 
       def fetch_nodes
         Chef::Node.list(true).each do |name, n|
-          node_hash = {"name" => name, "env" => n.chef_environment, "attribiutes" => n.normal_attrs, "run_list" => n.run_list}
+          node_hash = {"name" => name, "env" => n.chef_environment, "normal" => n.normal_attrs, "run_list" => n.run_list}
           save_to_file("nodes",name, node_hash)
         end
       end

@@ -398,13 +398,13 @@ describe Chef::Knife::ScribeCopy do
       @node1.stub(:chef_environment) { "chef_environment1" }
       @node1.stub(:normal_attrs) { { :attr1 => "val1" } }
       @node1.stub(:run_list) { ["cookbook1", "cookbook2"] }
-      @serialized_node1 = {"name" => @node1.name, "env" => @node1.chef_environment, "attribiutes" => @node1.normal_attrs, "run_list" => @node1.run_list}
+      @serialized_node1 = {"name" => @node1.name, "env" => @node1.chef_environment, "normal" => @node1.normal_attrs, "run_list" => @node1.run_list}
       @node2 = { :test2 => :value2 }
       @node2.stub(:name) { "node_name2" }
       @node2.stub(:chef_environment) { "chef_environment2" }
       @node2.stub(:normal_attrs) { { :attrA => "valA" } }
       @node2.stub(:run_list) { ["cookbookA", "cookbookB"] }
-      @serialized_node2 = {"name" => @node2.name, "env" => @node2.chef_environment, "attribiutes" => @node2.normal_attrs, "run_list" => @node2.run_list}
+      @serialized_node2 = {"name" => @node2.name, "env" => @node2.chef_environment, "normal" => @node2.normal_attrs, "run_list" => @node2.run_list}
       Chef::Node.stub(:list) { { @node1.name => @node1, @node2.name => @node2 } }
     end
 
