@@ -28,10 +28,6 @@ describe Chef::Knife::ScribeAdjust do
     @scribe.should respond_to(:action_merge)
   end
 
-  it "responds to #action_hash_only_merge" do
-    @scribe.should respond_to(:action_hash_only_merge)
-  end
-
   it "responds to #action_overwrite" do
     @scribe.should respond_to(:action_overwrite)
   end
@@ -614,11 +610,7 @@ describe Chef::Knife::ScribeAdjust do
       Chef::Search::Query.stub(:new).and_return(@query)
       @chef_obj = double("chef_object")
       @chef_obj.stub(:to_hash).and_return( { "name" => "test_name", "chef_type" => "test_type", "a" => 3, "c" => 3 } )
-      chef_obj_class = double("chef_object_class")
-      json_create_return_obj = double("final_chef_object")
-      json_create_return_obj.stub(:save)
-      chef_obj_class.stub(:json_create).and_return(json_create_return_obj)
-      @chef_obj.stub(:class).and_return(chef_obj_class)
+      @chef_obj.stub(:name).and_return("test_name")
       @query.stub(:search).and_yield(@chef_obj)
     end
 
@@ -644,35 +636,90 @@ describe Chef::Knife::ScribeAdjust do
       end
     end
 
-    it "checks if the a change to a given object is already pending" do
-      @scribe.changes.should_receive(:has_key?).with(@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"])
+    it "saves the changed version in the changes hash" do
+      adjusted_hash = @chef_obj.to_hash.dup.merge({ "a" => "b" })
+      changes_hash = { "original" => @chef_obj.to_hash, "adjusted" => adjusted_hash }
+      @scribe.changes[@chef_obj.class.name.downcase + ":" + @chef_obj.name] = changes_hash
+      adjusted_hash = @scribe.send(("action_" + @adjustment["action"]).to_sym, adjusted_hash, @adjustment["adjustment"])
+      changes_hash.should_receive(:store).with("adjusted", adjusted_hash).and_call_original
       @scribe.apply_adjustment(@adjustment)
+    end
+  end
+
+  describe "#prepare_adjustment_subject" do
+    before(:each) do
+      @chef_obj = double("chef_object")
+      @chef_obj.stub(:to_hash).and_return( { "name" => "test_name", "chef_type" => "test_type", "a" => 3, "c" => 3 } )
+      @key = "test_type:test_name"
+    end
+
+    it "checks if the a change to a given object is already pending" do
+      @scribe.changes.should_receive(:has_key?).with(@key)
+      @scribe.prepare_adjustment_subject(@key, @chef_obj)
     end
 
     describe "if the key doesn't exist" do
       it "saves the original in the changes hash" do
-        @scribe.changes.should_receive(:store).with(@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"],
+        @scribe.changes.should_receive(:store).with(@key,
                                                     { "original" => @chef_obj.to_hash }
                                                     ).and_call_original
-        @scribe.apply_adjustment(@adjustment)
+        @scribe.prepare_adjustment_subject(@key, @chef_obj)
+      end
+
+      it "prepares the object hash" do
+        @scribe.should_receive(:prepare_object_hash).with(@chef_obj)
+        @scribe.prepare_adjustment_subject(@key, @chef_obj)
+      end
+
+      it "returns the prepared object hash" do
+        @scribe.prepare_adjustment_subject(@key, @chef_obj).should == @chef_obj.to_hash
       end
     end
 
-    it "applies each subsequent adjustment to the already adjusted version" do
-      adjusted_hash = @chef_obj.to_hash.dup.merge({"a" => "b"})
-      changes_hash = { "original" => @chef_obj.to_hash, "adjusted" => adjusted_hash }
-      @scribe.changes[@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"]] = changes_hash
-      @scribe.should_receive(("action_" + @adjustment["action"]).to_sym).with(adjusted_hash, @adjustment["adjustment"])
-      @scribe.apply_adjustment(@adjustment)
+    describe "if the key already exists" do
+      before(:each) do
+        @adjusted_hash = @chef_obj.to_hash.dup.merge({"a" => "b"})
+        changes_hash = { "original" => @chef_obj.to_hash, "adjusted" => @adjusted_hash }
+        @scribe.changes[@key] = changes_hash
+      end
+
+      it "it returns the previously adjusted version" do
+        @scribe.prepare_adjustment_subject(@key, @chef_obj).should == @adjusted_hash
+      end
+    end
+  end
+
+  describe "#prepare_object_hash" do
+    describe "if object isn't a node" do
+      before(:each) do
+        @chef_obj = double("chef_object")
+        @chef_obj.stub(:to_hash).and_return( { "name" => "test_name", "chef_type" => "test_type", "a" => 3, "c" => 3 } )
+      end
+
+      it "returns the object converted to hash" do
+        @scribe.prepare_object_hash(@chef_obj).should == @chef_obj.to_hash
+      end
     end
 
-    it "saves the changed version in the changes hash" do
-      adjusted_hash = @chef_obj.to_hash.dup.merge({ "a" => "b" })
-      changes_hash = { "original" => @chef_obj.to_hash, "adjusted" => adjusted_hash }
-      @scribe.changes[@chef_obj.to_hash["chef_type"] + ":" + @chef_obj.to_hash["name"]] = changes_hash
-      adjusted_hash = @scribe.send(("action_" + @adjustment["action"]).to_sym, adjusted_hash, @adjustment["adjustment"])
-      changes_hash.should_receive(:store).with("adjusted", adjusted_hash).and_call_original
-      @scribe.apply_adjustment(@adjustment)
+    describe "if object is a node" do
+      before(:each) do
+        @chef_obj = double("chef_object")
+        @node_data = { "name" => "test_name",
+          "chef_type" => "node",
+          "a" => 3,
+          "c" => 3,
+          "chef_environment" => "test_env",
+          "run_list" => "blah"
+        }
+        @chef_obj.stub(:to_hash).and_return( @node_data)
+        @chef_obj.stub(:normal_attrs).and_return({"nx" => "ny"})
+        @prepared_data = @node_data.select { |key, value| ["name","chef_type","chef_environment","run_list"].include? key }
+        @prepared_data.merge!({"normal" => {"nx" => "ny"}})
+      end
+
+      it "keeps only the relevant information" do
+        @scribe.prepare_object_hash(@chef_obj).should == @prepared_data
+      end
     end
   end
 

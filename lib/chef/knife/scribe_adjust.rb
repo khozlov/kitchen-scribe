@@ -192,15 +192,29 @@ class Chef
       def apply_adjustment(adjustment)
         query = adjustment["search"].include?(":") ? adjustment["search"] : "name:" + adjustment["search"]
         Chef::Search::Query.new.search(adjustment["type"], query ) do |result|
-          result_hash = result.to_hash
-          key = result_hash["chef_type"] + ":" + result_hash["name"]
-          if changes.has_key? key
-            result_hash = changes[key]["adjusted"]
-          else
-            changes.store(key, { "original" => result_hash })
-          end
-          changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, result_hash, adjustment["adjustment"]))
+          key = result.class.name.downcase + ":" + result.name
+          prepared_hash = prepare_adjustment_subject(key, result)
+          changes[key].store("adjusted", send(("action_" + adjustment["action"]).to_sym, prepared_hash, adjustment["adjustment"]))
         end
+      end
+
+      def prepare_adjustment_subject(key, chef_object)
+        prepared_hash = prepare_object_hash(chef_object)
+        if changes.has_key? key
+          prepared_hash = changes[key]["adjusted"]
+        else
+          changes.store(key, { "original" => prepared_hash })
+        end
+        prepared_hash
+      end
+
+      def prepare_object_hash(chef_object)
+        prepared_hash = chef_object.to_hash
+        if prepared_hash["chef_type"] == "node"
+          prepared_hash.keep_if { |key, value| ["name","chef_type","chef_environment","run_list"].include? key }
+          prepared_hash.merge!({ "normal" => chef_object.normal_attrs })
+        end
+        prepared_hash
       end
 
       def write_adjustments
