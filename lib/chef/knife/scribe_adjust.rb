@@ -38,6 +38,9 @@ class Chef
       }
 
       ENVIRONMENT_ADJUSTMENT_TEMPLATE = {
+        "action" => "merge",
+        "type" => "environment",
+        "search" => "name:my_environment_name",
         "adjustment" => { "default_attributes" => { },
           "override_attributes" => { },
           "cookbook_versions" => { }
@@ -45,6 +48,9 @@ class Chef
       }
 
       ROLE_ADJUSTMENT_TEMPLATE = {
+        "action" => "merge",
+        "type" => "role",
+        "search" => "name:my_role_name",
         "adjustment" => { "default_attributes" => { },
           "override_attributes" => { },
           "run_list" => [ ]
@@ -52,8 +58,11 @@ class Chef
       }
 
       NODE_ADJUSTMENT_TEMPLATE = {
-        "adjustment" => { "attributes" => { },
-          "run_list" => [ ]
+        "action" => "merge",
+        "type" => "node",
+        "search" => "name:my_node_name",
+        "adjustment" => { "normal" => { },
+          "run_list" => [ ],
         }
       }
 
