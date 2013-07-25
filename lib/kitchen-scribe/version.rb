@@ -1,4 +1,4 @@
 module KitchenScribe
-  VERSION = "0.2.0"
+  VERSION = "0.3.0"
   MAJOR, MINOR, TINY = VERSION.split('.')
 end
