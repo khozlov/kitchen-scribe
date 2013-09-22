@@ -17,8 +17,10 @@ The philosophy behind using scribe to update your environments, roles an nodes i
 
 The plugin is still in the beta stage, I've tested it manualy to some extent, but I'm sure there are things I missed. Please submit any bugs you find through the github issue system and I promiss to take care of them as soon as possible.
 
-[![Code Climate](https://codeclimate.com/github/khozlov/kitchen-scribe.png)](https://codeclimate.com/github/khozlov/kitchen-scribe)
 [![Gem Version](https://badge.fury.io/rb/kitchen-scribe.png)](http://badge.fury.io/rb/kitchen-scribe)
+[![Build Status](https://travis-ci.org/khozlov/kitchen-scribe.png?branch=master)](https://travis-ci.org/khozlov/kitchen-scribe)
+[![Dependency Status](https://gemnasium.com/khozlov/kitchen-scribe.png)](https://gemnasium.com/khozlov/kitchen-scribe)
+[![Code Climate](https://codeclimate.com/github/khozlov/kitchen-scribe.png)](https://codeclimate.com/github/khozlov/kitchen-scribe)
 
 USAGE
 -----
@@ -50,6 +52,8 @@ You can also specify all the params in your `knife.rb` not to type it in every t
                        :branch => "your_branch",
                        :commit_message => "your_commit_message"
                      }
+
+At this moment, when using ruby 1.8.7 or earlier the diff between subsequent revisions might be inaccurate due to non-deterministic hash ordering in versions prior to 1.9. I'll try to fix it in future releases.  
 
 ### Making Changes
 
@@ -116,8 +120,7 @@ Have fun!
 WHAT'S NEXT
 -----------
 * Refactoring, refactoring, refactoring
-* Testing
-* Bug fixes
+* Ruby 1.8.7 fix
 
 LICENSE
 -------
