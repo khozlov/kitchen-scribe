@@ -12,6 +12,7 @@ Gem::Specification.new do |s|
   s.summary = "Knife plugin for tracking your chef configuration changes"
   s.description = s.summary
   s.extra_rdoc_files = ["README.md", "LICENSE" ]
+  s.license = "Apache License (2.0)"
 
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
