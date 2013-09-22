@@ -1,1 +1,3 @@
 .chef
+Gemfile.lock
+gemfiles/*.lock
