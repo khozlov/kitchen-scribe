@@ -133,7 +133,7 @@ describe Chef::Knife::ScribeAdjust do
 
         it "prints errors but does not exit" do
           @scribe.should_receive(:print_errors)
-          lambda { @scribe.parse_adjustments }.should_not raise_error(SystemExit)
+          lambda { @scribe.parse_adjustments }.should_not raise_error()
         end
       end
     end
@@ -535,7 +535,7 @@ describe Chef::Knife::ScribeAdjust do
 
       it "doesn't throw an exception" do
         File.should_receive(:open).with(@filename, "r").and_yield('{"a" : 3, b => ]')
-        lambda { @scribe.parse_adjustment_file(@filename) }.should_not raise_error(JSON::ParserError)
+        lambda { @scribe.parse_adjustment_file(@filename) }.should_not raise_error()
       end
     end
 
@@ -713,7 +713,7 @@ describe Chef::Knife::ScribeAdjust do
         }
         @chef_obj.stub(:to_hash).and_return( @node_data)
         @chef_obj.stub(:normal_attrs).and_return({"nx" => "ny"})
-        @prepared_data = @node_data.select { |key, value| ["name","chef_type","chef_environment","run_list"].include? key }
+        @prepared_data = @node_data.reject { |key, value| !(["name","chef_type","chef_environment","run_list"].include? key) }
         @prepared_data.merge!({"normal" => {"nx" => "ny"}})
       end
 

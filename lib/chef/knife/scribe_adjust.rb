@@ -220,7 +220,7 @@ class Chef
       def prepare_object_hash(chef_object)
         prepared_hash = chef_object.to_hash
         if prepared_hash["chef_type"] == "node"
-          prepared_hash.keep_if { |key, value| ["name","chef_type","chef_environment","run_list"].include? key }
+          prepared_hash.reject! { |key, value| !(["name","chef_type","chef_environment","run_list"].include? key) }
           prepared_hash.merge!({ "normal" => chef_object.normal_attrs })
         end
         prepared_hash

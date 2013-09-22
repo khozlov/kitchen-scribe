@@ -20,8 +20,8 @@ require File.expand_path('../../../spec_helper', __FILE__)
 
 describe Chef::Knife::ScribeHire do
   before(:each) do
-    Dir.stub!(:mkdir)
-    Dir.stub!(:pwd) { "some_path" }
+    Dir.stub(:mkdir)
+    Dir.stub(:pwd) { "some_path" }
     @scribe = Chef::Knife::ScribeHire.new
     Chef::Config[:knife][:scribe] = {}
     @scribe.configure
@@ -31,7 +31,7 @@ describe Chef::Knife::ScribeHire do
     before(:each) do
       @scribe.stub(:setup_remote)
       @scribe.stub(:init_chronicle)
-      File.stub!(:directory?) { false }
+      File.stub(:directory?) { false }
     end
 
     it "calls #configure" do

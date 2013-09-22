@@ -434,8 +434,8 @@ describe Chef::Knife::ScribeCopy do
   describe "#deep_sort" do
     describe "when it gets a hash as a parameter" do
       it "sorts the hash" do
-        sorted_hash = @scribe.deep_sort({:c => 3, :a => 1, :x => 0, :d => -2})
-        sorted_values = [[:a, 1], [:c,3], [:d,-2], [:x,0]]
+        sorted_hash = @scribe.deep_sort({"c" => 3, "a" => 1, "x" => 0, "d" => -2})
+        sorted_values = [["a", 1], ["c",3], ["d",-2], ["x",0]]
         i = 0
         sorted_hash.each do |key, value|
           key.should eql(sorted_values[i][0])
@@ -445,7 +445,7 @@ describe Chef::Knife::ScribeCopy do
       end
 
       it "calls itself recursively with each value" do
-        hash_to_sort = {:g => 3, :b => 1, :z => 0, :h => -2}
+        hash_to_sort = {"g" => 3, "b" => 1, "z" => 0, "h" => -2}
         @scribe.should_receive(:deep_sort).with(hash_to_sort).and_call_original
         hash_to_sort.values.each {|value| @scribe.should_receive(:deep_sort).with(value)}
         @scribe.deep_sort(hash_to_sort)
